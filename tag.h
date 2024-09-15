@@ -58,7 +58,7 @@ int save_auth(const char* fn);
 int import_auth();
 
 // Output tag data
-void print_tag();
+void print_tag(mf_size_t size);
 void print_tag_head();
 void print_tag_block_range(size_t first, size_t last);
 void print_tag_data_range(size_t byte_offset, size_t bit_offset,
