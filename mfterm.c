@@ -51,7 +51,7 @@ void parse_cmdline(int argc, char** argv);
 void print_help();
 void print_version();
 
-typedef char** rl_completion_func_t(const char*, int, int);
+//typedef char** rl_completion_func_t(const char*, int, int);
 
 int main(int argc, char** argv) {
   parse_cmdline(argc, argv);
