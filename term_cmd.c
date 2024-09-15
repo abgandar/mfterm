@@ -50,6 +50,8 @@ command_t commands[] = {
   { "write",          com_write_tag,          0, 1, "A|B : Write tag data to a physical tag" },
   { "write unlocked", com_write_tag_unlocked, 0, 1, "On pirate cards, write 1k tag with block 0" },
 
+// XXX add blank/format command to reset tag data to 00 and all keys to ffffffffffff
+
   { "print",      com_print,      0, 1, "1k|4k : Print tag data" },
   { "p",          com_print,      0, 0, "1k|4k : Print tag data" },
   { "print head", com_print_head, 0, 1, "Print first sector" },
@@ -70,6 +72,7 @@ command_t commands[] = {
   { "dict load",   com_dict_load,   1, 1, "Load a dictionary key file" },
   { "dict clear",  com_dict_clear,  0, 1, "Clear the key dictionary" },
   { "dict attack", com_dict_attack, 0, 1, "Find keys of a physical tag"},
+  { "dict add",    com_dict_add,    1, 1, "Add key to key dictionary" },
   { "dict",        com_dict_print,  0, 1, "Print the key dictionary" },
 
   { "spec load",   com_spec_load,   1, 1, "Load a specification file" },
@@ -442,7 +445,7 @@ int com_keys_set(char* arg) {
     return -1;
   }
 
-  // Read sector
+  // Read sector    XXX: Add ranges and * catch-all to set multiple sectors
   long int sector = strtol(sector_str, &sector_str, 16);
 
   // Sanity check sector range
@@ -574,6 +577,44 @@ int com_dict_attack(char* arg) {
   }
 
   mf_dictionary_attack(&current_auth);
+  return 0;
+}
+
+int com_dict_add(char* arg) {
+  // Arg format: key
+
+  char* key_str = strtok(arg, " ");
+
+  if (strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  if (!key_str) {
+    printf("Too few arguments: key\n");
+    return -1;
+  }
+
+  // Sanity check key length
+  if (strncmp(key_str, "0x", 2) == 0)
+    key_str += 2;
+  if (strlen(key_str) != 12) {
+    printf("Invalid key (6 byte hex): %s\n", key_str);
+    return -1;
+  }
+
+  // Parse the key
+  uint8_t key[6];
+  if (read_key(key, key_str) == NULL) {
+    printf("Invalid key character (non hex)\n");
+    return -1;
+  }
+
+  if (!dictionary_add(key)) {
+    printf("Duplicate key (moved to front of dict)\n");
+    return -1;
+  }
+
   return 0;
 }
 
