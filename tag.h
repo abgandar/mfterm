@@ -120,7 +120,7 @@ void key_to_tag(mf_tag_t* tag, const uint8_t* key,
  * 0. Subsequent calls should use the tag size as state. The iterator
  * returns -1 as an end marker.
  */
-int sector_header_iterator(int state);
+int sector_header_iterator(mf_size_t state);
 
 
 #endif
