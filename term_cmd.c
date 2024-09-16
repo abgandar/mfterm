@@ -46,11 +46,15 @@ command_t commands[] = {
   { "clear", com_clear_tag, 0, 1, "Clear the current tag data" },
 
   { "read",           com_read_tag,           0, 1, "A|B : Read tag data from a physical tag" },
-  { "read unlocked",  com_read_tag_unlocked,  0, 1, "On pirate cards, read card without keys" },
+  { "read unlocked",  com_read_tag_unlocked,  0, 1, "On GEN2 CUID cards, read card without keys" },
   { "write",          com_write_tag,          0, 1, "A|B : Write tag data to a physical tag" },
-  { "write unlocked", com_write_tag_unlocked, 0, 1, "On pirate cards, write 1k tag with block 0" },
+  { "write unlocked", com_write_tag_unlocked, 0, 1, "On GEN2 CUID cards, write 1k tag with block 0" },
 
-// XXX add blank/format command to reset tag data to 00 and all keys to ffffffffffff
+  { "gen3 setuid", com_gen3_writeuid, 0, 1, "On GEN3 cards, set UID without modifying block 0" },
+  { "gen3 write0", com_gen3_write0,   0, 1, "On GEN3 cards, write block 0 and set UID" },
+  { "gen3 lock",   com_gen3_lock,     0, 1, "On GEN3 cards, lock the card permanently" },
+
+//  { "wipe", com_gen_wipe, 0, 1, "On GEN2 cards, wipe entire card without keys" },
 
   { "print",      com_print,      0, 1, "1k|4k : Print tag data" },
   { "p",          com_print,      0, 0, "1k|4k : Print tag data" },
@@ -58,8 +62,8 @@ command_t commands[] = {
   { "print keys", com_print_keys, 0, 1, "1k|4k : Print tag's keys" },
   { "print ac",   com_print_ac,   0, 1, "Print access conditions" },
 
-  { "set",    com_set,    0, 1, "#block #offset = xx xx xx : Set tag data" },
-  { "setuid", com_setuid, 0, 1, "xx xx xx xx: Set tag UID" },
+  { "set",    com_set,    0, 1, "#block #offset = xx xx xx ... : Set tag data" },
+  { "setuid", com_setuid, 0, 1, "xx xx xx xx [xx xx xx]: Set tag UID" },
 
   { "keys load",   com_keys_load,   1, 1, "Load keys from a file" },
   { "keys save",   com_keys_save,   1, 1, "Save keys to a file" },
@@ -72,7 +76,7 @@ command_t commands[] = {
   { "dict load",   com_dict_load,   1, 1, "Load a dictionary key file" },
   { "dict clear",  com_dict_clear,  0, 1, "Clear the key dictionary" },
   { "dict attack", com_dict_attack, 0, 1, "Find keys of a physical tag"},
-  { "dict add",    com_dict_add,    1, 1, "Add key to key dictionary" },
+  { "dict add",    com_dict_add,    0, 1, "Add key to key dictionary" },
   { "dict",        com_dict_print,  0, 1, "Print the key dictionary" },
 
   { "spec load",   com_spec_load,   1, 1, "Load a specification file" },
@@ -274,6 +278,7 @@ int com_print(char* arg) {
     return -1;
   }
 
+// XXX: add range of sectors to print
   mf_size_t size = parse_size_default(a, MF_1K);
 
   if (size == MF_INVALID_SIZE) {
@@ -348,16 +353,11 @@ int com_set(char* arg) {
 
 int com_setuid(char* arg) {
   char* byte_str = strtok(arg, " ");
-  int block = 0;
-
-  /// TODO : Check arg size (display warning if < 4)
-  if (!byte_str) {
-    printf("Too few arguments: xx xx xx xx\n");
-    return -1;
-  }
+  uint8_t uid[7];
+  unsigned int i = 0;
 
   // Consume the byte tokens
-  do {
+  while((byte_str != (char*)NULL) && (i < 7)) {
     long int byte = strtol(byte_str, &byte_str, 16);
 
     if (byte < 0 || byte > 0xff) {
@@ -365,17 +365,59 @@ int com_setuid(char* arg) {
       return -1;
     }
 
-    // Write the data
-    current_tag.amb[0].mbd.abtData[block++] = (uint8_t)byte;
+    uid[i] = (uint8_t)byte;
+    i++;
+    byte_str = strtok(NULL, " ");
+  };
 
-  } while(((byte_str = strtok(NULL, " ")) != (char*)NULL) && (block < 4));
-  // Compute and write BCC
-  current_tag.amb[0].mbd.abtData[4] = (uint8_t)current_tag.amb[0].mbd.abtData[0] ^
-    (uint8_t)current_tag.amb[0].mbd.abtData[1] ^
-    (uint8_t)current_tag.amb[0].mbd.abtData[2] ^
-    (uint8_t)current_tag.amb[0].mbd.abtData[3];
+  if((byte_str != (char*)NULL) || ((i != 4) && (i != 7))) {
+    printf("Expected exactly 4 or 7 arguments in hex: xx xx xx xx [xx xx xx]\n");
+    return -1;
+  }
+
+  if( i == 4 ) {
+    // Compute BCC
+    uid[4] = uid[0] ^ uid[1] ^ uid[2] ^ uid[3];
+    i = 5;
+  }
+
+  // Write data to tag
+  memcpy( current_tag.amb[0].mbd.abtData, uid, i );
 
   return 0;
+}
+
+int com_gen3_writeuid(char* arg) {
+  char* a = strtok(arg, " ");
+
+  if (a && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  return mf_gen3_setuid(current_tag.amb[0].mbd.abtData);
+}
+
+int com_gen3_write0(char* arg) {
+  char* a = strtok(arg, " ");
+
+  if (a && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  return mf_gen3_setblock0(current_tag.amb[0].mbd.abtData);
+}
+
+int com_gen3_lock(char* arg) {
+  char* yes_str = strtok(arg, " ");
+
+  if (!yes_str || strncmp( yes_str, "YES!", 4 ) != 0 || strtok(NULL, " ") != (char*)NULL) {
+    printf("This command permanently locks the card! Provide a single argument saying YES! to proceed.\n");
+    return -1;
+  }
+
+  return mf_gen3_lock();
 }
 
 int com_print_keys(char* arg) {

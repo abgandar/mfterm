@@ -337,6 +337,90 @@ bool mf_unlock() {
   return true;
 }
 
+/**
+ * This command sets the 7 byte UID used in card selection without changing block0 for GEN3 CUID cards.
+ */
+int mf_gen3_setuid(const uint8_t uid[7]) {
+  // Special set UID command
+  uint8_t abtUID[12] = { 0x90, 0xFB, 0xCC, 0xCC, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
+  if (mf_connect())
+    return -1; // No need to disconnect here
+
+  // Disable easy framing. Use raw send/receive methods
+  if (nfc_device_set_property_bool (device, NP_EASY_FRAMING, false) < 0)
+    return mf_disconnect(-1);
+
+  // Send command
+  memcpy(abtUID+5, uid, 7);
+  if (!transmit_bytes (abtUID, 12))
+    return mf_disconnect(-1);
+
+  printf("UID set to %02x%02x%02x%02x%02x%02x%02x\n", uid[0], uid[1], uid[2], uid[3], uid[4], uid[5], uid[6]);
+
+  // Reset reader configuration. CRC and easy framing. Not really needed as we disconnect right away.
+  if (nfc_device_set_property_bool (device, NP_EASY_FRAMING, true) < 0)
+    return mf_disconnect(-1);
+
+  return mf_disconnect(0);
+}
+
+/**
+ * This command writes the 16 byte block0 and sets the UID for GEN3 CUID cards.
+ * ATQA and SAK bytes are automatically replaced by fixed values. On 4-byte UID cards, BCC byte is automatically corrected.
+ */
+int mf_gen3_setblock0(const uint8_t data[16]) {
+  // Special write block 0 command
+  uint8_t abtBlock0[21] = { 0x90, 0xF0, 0xCC, 0xCC, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
+  if (mf_connect())
+    return -1; // No need to disconnect here
+
+  // Disable easy framing. Use raw send/receive methods
+  if (nfc_device_set_property_bool (device, NP_EASY_FRAMING, false) < 0)
+    return mf_disconnect(-1);
+
+  // Send command
+  memcpy(abtBlock0+5, data, 16);
+  if (!transmit_bytes (abtBlock0, 21))
+    return mf_disconnect(-1);
+
+  printf("Block 0 written\n");
+
+  // Reset reader configuration. CRC and easy framing. Not really needed as we disconnect right away.
+  if (nfc_device_set_property_bool (device, NP_EASY_FRAMING, true) < 0)
+    return mf_disconnect(-1);
+
+  return mf_disconnect(0);
+}
+
+/**
+ * This command locks the card permanently for GEN3 CUID cards.
+ */
+int mf_gen3_lock() {
+  // Special lock command
+  uint8_t abtLock[5] = { 0x90, 0xFD, 0x11, 0x11, 0x00 };
+
+  if (mf_connect())
+    return -1; // No need to disconnect here
+
+  // Disable easy framing. Use raw send/receive methods
+  if (nfc_device_set_property_bool (device, NP_EASY_FRAMING, false) < 0)
+    return mf_disconnect(-1);
+
+  // Send command
+  if (!transmit_bytes (abtLock, 5))
+    return mf_disconnect(-1);
+
+  printf("Card locked\n");
+
+  // Reset reader configuration. CRC and easy framing. Not really needed as we disconnect right away.
+  if (nfc_device_set_property_bool (device, NP_EASY_FRAMING, true) < 0)
+    return mf_disconnect(-1);
+
+  return mf_disconnect(0);
+}
+
 bool mf_read_tag_internal(mf_tag_t* tag,
                           const mf_tag_t* keys, mf_key_type_t key_type) {
   mifare_param mp;

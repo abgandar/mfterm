@@ -51,6 +51,11 @@ int com_print_ac(char* arg);
 int com_set(char* arg);
 int com_setuid(char* arg);
 
+// GEN3 card commands
+int com_gen3_writeuid(char* arg);
+int com_gen3_write0(char* arg);
+int com_gen3_lock(char* arg);
+
 // Key operations
 int com_keys_load(char* arg);
 int com_keys_save(char* arg);

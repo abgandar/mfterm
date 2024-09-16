@@ -66,4 +66,11 @@ int mf_test_auth(const mf_tag_t* keys,
                  mf_size_t size,
                  mf_key_type_t key_type);
 
+/**
+ * GEN3 special commands
+ */
+int mf_gen3_setuid(const uint8_t uid[7]);
+int mf_gen3_setblock0(const uint8_t data[16]);
+int mf_gen3_lock();
+
 #endif
