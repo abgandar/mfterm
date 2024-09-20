@@ -28,28 +28,55 @@ int com_help(char* arg);
 // Exit mfterm command
 int com_quit(char* arg);
 
+// Misc routines
+int com_version(char* arg);
+int com_devices(char* arg);
+
+// Settings
+int com_set(char* arg);
+int com_set_keys(char* arg);
+int com_set_size(char* arg);
+int com_set_device(char* arg);
+
 // Load/Save tag file operations
 int com_load_tag(char* arg);
 int com_save_tag(char* arg);
 
-// Clear (zero) tag command
-int com_clear_tag(char* arg);
+// Safely clear (zero) commands (preserve keys, access bits, block0)
+int com_reset_tag(char* arg);
+int com_clear_sector(char* arg);
+int com_clear_block(char* arg);
 
 // Read/Write tag NFC operations
-int com_read_tag(char* arg);
-int com_read_tag_unlocked(char* arg);
-int com_write_tag(char* arg);
-int com_write_tag_unlocked(char* arg);
+int com_read_block(char* arg);
+int com_read_sector(char* arg);
+int com_write_block(char* arg);
+int com_write_sector(char* arg);
+
+// Ident card
+int com_ident(char* arg);
+int com_check_tag(char* arg);
 
 // Tag print commands
-int com_print(char* arg);
-int com_print_head(char* arg);
+int com_print_blocks(char* arg);
+int com_print_sectors(char* arg);
 int com_print_keys(char* arg);
-int com_print_ac(char* arg);
+int com_print_perm(char* arg);
 
 // Tag set (value) command
+int com_put(char* arg);
+int com_put_uid(char* arg);
+int com_put_key(char* arg);
+int com_put_perm(char* arg);
+
+// setting functions
 int com_set(char* arg);
-int com_setuid(char* arg);
+int com_set_auth(char* arg);
+int com_set_device(char* arg);
+int com_set_size(char* arg);
+
+// GEN2 card commands
+int com_gen2_wipe(char* arg);
 
 // GEN3 card commands
 int com_gen3_writeuid(char* arg);
@@ -60,8 +87,9 @@ int com_gen3_lock(char* arg);
 int com_keys_load(char* arg);
 int com_keys_save(char* arg);
 int com_keys_clear(char* arg);
-int com_keys_set(char* arg);
+int com_keys_put(char* arg);
 int com_keys_import(char* arg);
+int com_keys_export(char* arg);
 int com_keys_print(char* arg);
 int com_keys_test(char* arg);
 

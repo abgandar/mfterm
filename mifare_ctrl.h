@@ -23,8 +23,23 @@
  * fileman.c (GPLv3). Copyright (C) 1987-2009 Free Software Foundation, Inc
  */
 
+#include <nfc/nfc-types.h>
 #include "tag.h"
 #include "dictionary.h"
+
+/**
+ * Settings
+ */
+typedef struct {
+  nfc_connstring device;
+  mf_key_type_t auth;
+  mf_size_t size;
+} settings_t;
+
+extern settings_t settings;
+
+// print list of all available NFC devices
+int mf_devices();
 
 /**
  * Connect to an nfc device. Then read the tag data, authenticating with the
@@ -67,10 +82,18 @@ int mf_test_auth(const mf_tag_t* keys,
                  mf_key_type_t key_type);
 
 /**
+ * GEN2 special commands
+ */
+int mf_gen2_wipe();
+
+/**
  * GEN3 special commands
  */
 int mf_gen3_setuid(const uint8_t uid[7]);
 int mf_gen3_setblock0(const uint8_t data[16]);
 int mf_gen3_lock();
 
+int mf_ident_tag();
+
+int mf_version();
 #endif

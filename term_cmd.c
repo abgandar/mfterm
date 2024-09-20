@@ -34,74 +34,92 @@
 #include "mac.h"
 
 command_t commands[] = {
-  { "help",  com_help, 0, 0, "Display this text" },
-  { "?",     com_help, 0, 0, "Synonym for 'help'" },
+  { "help",         com_help,          0, 0, "Display this text" },
+  { "?",            com_help,          0, 0, "Synonym for 'help'" },
+  { "version",      com_version,       0, 1, "Show version information" },
+  { "devices",      com_devices,       0, 1, "List all connected NFC devices" },
 
-  { "quit",  com_quit, 0, 1, "Exit the program" },
-  { "q",     com_quit, 0, 0, "Exit the program" },
-  { "exit",  com_quit, 0, 0, "Synonym for 'quit'" },
+  { "q",            com_quit,          0, 0, "Exit the program" },
+  { "quit",         com_quit,          0, 1, "Exit the program" },
+  { "exit",         com_quit,          0, 0, "Synonym for 'quit'" },
 
-  { "load",  com_load_tag,  1, 1, "Load tag data from a file" },
-  { "save",  com_save_tag,  1, 1, "Save tag data to a file" },
-  { "clear", com_clear_tag, 0, 1, "Clear the current tag data" },
+  { "load",         com_load_tag,      1, 1, "Load tag data from a file" },
+  { "open",         com_load_tag,      1, 0, "Load tag data from a file" },
+  { "save",         com_save_tag,      1, 1, "Save tag data to a file" },
 
-  { "read",           com_read_tag,           0, 1, "A|B : Read tag data from a physical tag" },
-  { "read unlocked",  com_read_tag_unlocked,  0, 1, "On GEN2 CUID cards, read card without keys" },
-  { "write",          com_write_tag,          0, 1, "A|B : Write tag data to a physical tag" },
-  { "write unlocked", com_write_tag_unlocked, 0, 1, "On GEN2 CUID cards, write 1k tag with block 0" },
+  { "reset",        com_reset_tag,     0, 1, "Reset all tag data including keys and permissions" },
+  { "clear block",  com_clear_block,   0, 1, "Clear the block user data" },
+  { "clear",        com_clear_sector,  0, 1, "Clear the sector user data" },
 
-  { "gen3 setuid", com_gen3_writeuid, 0, 1, "On GEN3 cards, set UID without modifying block 0" },
-  { "gen3 write0", com_gen3_write0,   0, 1, "On GEN3 cards, write block 0 and set UID" },
-  { "gen3 lock",   com_gen3_lock,     0, 1, "On GEN3 cards, lock the card permanently" },
+  { "read block",   com_read_block,    0, 1, "#sector: Read block from a physical tag" },
+  { "read",         com_read_sector,   0, 1, "#sector: Read sector from a physical tag" },
+  { "write! block", com_write_block,   0, 1, "#block: Write block to a physical tag" },
+  { "write!",       com_write_sector,  0, 1, "#sector: Write sector to a physical tag" },
 
-//  { "wipe", com_gen_wipe, 0, 1, "On GEN2 cards, wipe entire card without keys" },
+  { "gen2 wipe!",   com_gen2_wipe,     0, 1, "On GEN2 cards, wipe entire card without keys" },
 
-  { "print",      com_print,      0, 1, "1k|4k : Print tag data" },
-  { "p",          com_print,      0, 0, "1k|4k : Print tag data" },
-  { "print head", com_print_head, 0, 1, "Print first sector" },
-  { "print keys", com_print_keys, 0, 1, "1k|4k : Print tag's keys" },
-  { "print ac",   com_print_ac,   0, 1, "Print access conditions" },
+  { "gen3 setuid!", com_gen3_writeuid, 0, 1, "On GEN3 cards, set UID without modifying block 0" },
+  { "gen3 write0!", com_gen3_write0,   0, 1, "On GEN3 cards, write block 0 and set UID" },
+  { "gen3 lock!",   com_gen3_lock,     0, 1, "On GEN3 cards, lock the card permanently" },
 
-  { "set",    com_set,    0, 1, "#block #offset = xx xx xx ... : Set tag data" },
-  { "setuid", com_setuid, 0, 1, "xx xx xx xx [xx xx xx]: Set tag UID" },
+  { "ident",        com_ident,         0, 1, "Identify card and print public information" },
+  { "check",        com_check_tag,     0, 1, "Check the current tag data" },
 
-  { "keys load",   com_keys_load,   1, 1, "Load keys from a file" },
-  { "keys save",   com_keys_save,   1, 1, "Save keys to a file" },
-  { "keys clear",  com_keys_clear,  0, 1, "Clear the keys" },
-  { "keys set",    com_keys_set,    0, 1, "A|B #S key : Set a key value" },
-  { "keys import", com_keys_import, 0, 1, "Import keys from the current tag" },
-  { "keys test",   com_keys_test,   0, 1, "Try to authenticate with the keys" },
-  { "keys",        com_keys_print,  0, 1, "1k|4k : Print the keys" },
+  { "print keys",   com_print_keys,    0, 1, "#sector: Print tag sector keys" },
+  { "print perm",   com_print_perm,    0, 1, "#sector: Print tag sector permissions/access conditions" },
+  { "print block",  com_print_blocks,  0, 1, "#block: Print tag block data" },
+  { "print",        com_print_sectors, 0, 1, "#sector: Print tag sector data" },
 
-  { "dict load",   com_dict_load,   1, 1, "Load a dictionary key file" },
-  { "dict clear",  com_dict_clear,  0, 1, "Clear the key dictionary" },
-  { "dict attack", com_dict_attack, 0, 1, "Find keys of a physical tag"},
-  { "dict add",    com_dict_add,    0, 1, "Add key to key dictionary" },
-  { "dict",        com_dict_print,  0, 1, "Print the key dictionary" },
+  { "put uid",      com_put_uid,       0, 1, "xx xx xx xx [xx xx xx]: Set tag UID" },
+  { "put key",      com_put_key,       0, 1, "A|B|AB #sector xxxxxxxxxxxx: Set tag sector key" },
+  { "put perm",     com_put_perm,      0, 1, "A|B|AB #sector ???: Set tag sector permissions/access conditions" },
+  { "put",          com_put,           0, 1, "#block #offset xx xx xx|\"ASCII\": Set tag block data" },
 
-  { "spec load",   com_spec_load,   1, 1, "Load a specification file" },
-  { "spec clear",  com_spec_clear,  0, 1, "Unload the specification" },
-  { "spec",        com_spec_print,  0, 1, "Print the specification" },
+  { "set auth",     com_set_auth,      0, 1, "A|B|*: Set keys to use for authentication (* = gen2 unlocked)" },
+  { "set size",     com_set_size,      0, 1, "1K|4K: Set the default tag size" },
+  { "set device",   com_set_device,    0, 1, "Set NFC device to use" },
+  { "set",          com_set,           0, 1, "Print current settings" },
+
+  { "keys load",    com_keys_load,     1, 1, "Load keys from file" },
+  { "keys save",    com_keys_save,     1, 1, "Save keys to file" },
+  { "keys clear",   com_keys_clear,    0, 1, "Clear keys" },
+  { "keys put",     com_keys_put,      0, 1, "A|B|AB #sector xxxxxxxxxxxx: Set key" },
+  { "keys import",  com_keys_import,   0, 1, "A|B|AB #sector: Import sector keys from tag" },
+  { "keys export",  com_keys_export,   0, 1, "A|B|AB #sector: Export sector keys to tag" },
+  { "keys test",    com_keys_test,     0, 1, "A|B|AB: Try to authenticate with the keys" },
+  { "keys",         com_keys_print,    0, 1, "#sector: Print sector keys" },
+
+  { "dict load",    com_dict_load,     1, 1, "Load a dictionary key file" },
+  { "dict clear",   com_dict_clear,    0, 1, "Clear the key dictionary" },
+  { "dict attack",  com_dict_attack,   0, 1, "Find keys of a physical tag"},
+  { "dict add",     com_dict_add,      0, 1, "Add key to key dictionary" },
+  { "dict",         com_dict_print,    0, 1, "Print the key dictionary" },
+
+  { "spec load",    com_spec_load,     1, 1, "Load a specification file" },
+  { "spec clear",   com_spec_clear,    0, 1, "Unload the specification" },
+  { "spec",         com_spec_print,    0, 1, "Print the specification" },
 
   { "mac key",      com_mac_key_get_set,   0, 1, "<k0..k7> : Get or set MAC key" },
   { "mac compute",  com_mac_block_compute, 0, 1, "#block : Compute block MAC" },
-  { "mac update",   com_mac_block_update,  0, 1, "#block : Compute block MAC" },
+  { "mac update",   com_mac_block_update,  0, 1, "#block : Update block MAC" },
   { "mac validate", com_mac_validate,      0, 1, "1k|4k : Validates block MAC of the whole tag" },
 
-  { (char *)NULL, (cmd_func_t)NULL, 0, 0, (char *)NULL }
+  { (char *)NULL,   (cmd_func_t)NULL,      0, 0, (char *)NULL }
 };
 
-// Parse a Mifare size type argument (1k|4k)
-mf_size_t parse_size(const char* str);
+// Parse a range of positive numbers in given base A-B (with either number ommitted leaving corresponding a and b unchanged) 
+int parse_range(const char* str, size_t* a, size_t* b, int base);
 
-// Parse a Mifare size type argument (1k|4k). Return the default
-// argument value if the string is NULL.
-mf_size_t parse_size_default(const char* str, mf_size_t default_size);
+// Parse a range of sectors 
+int parse_sectors(const char* str, size_t* a, size_t* b);
 
-// Parse a Mifare key type argument (A|B)
+// Parse a range of blocks 
+int parse_blocks(const char* str, size_t* a, size_t* b);
+
+// Parse a Mifare key type argument (A|B|AB|*)
 mf_key_type_t parse_key_type(const char* str);
 
-// Parse a Mifare key type argument (A|B). Return the default
+// Parse a Mifare key type argument (A|B|AB|*). Return the default
 // argument value if the string is NULL.
 mf_key_type_t parse_key_type_default(const char* str,
                                      mf_key_type_t default_type);
@@ -191,12 +209,24 @@ int com_save_tag(char* arg) {
   return 0;
 }
 
-int com_clear_tag(char* arg) {
+int com_reset_tag(char* arg) {
   clear_tag(&current_tag);
   return 0;
 }
 
-int com_read_tag(char* arg) {
+int com_clear_block(char* arg) {
+  return 0;
+}
+
+int com_clear_sector(char* arg) {
+  return 0;
+}
+
+int com_read_block(char* arg) {
+  return 0;
+}
+
+int com_read_sector(char* arg) {
   // Add option to choose key
   char* ab = strtok(arg, " ");
 
@@ -219,19 +249,12 @@ int com_read_tag(char* arg) {
   return 0;
 }
 
-int com_read_tag_unlocked(char* arg) {
-  char* ab = strtok(arg, " ");
-  if (ab) {
-    printf("This command doesn't take any arguments\n");
-    return -1;
-  }
 
-  // Issue the read request
-  mf_read_tag(&current_tag, MF_KEY_UNLOCKED);
+int com_write_block(char* arg) {
   return 0;
 }
 
-int com_write_tag(char* arg) {
+int com_write_sector(char* arg) {
   // Add option to choose key
   char* ab = strtok(arg, " ");
 
@@ -269,8 +292,7 @@ int com_write_tag_unlocked(char* arg) {
   return 0;
 }
 
-int com_print(char* arg) {
-
+int com_ident(char* arg) {
   char* a = strtok(arg, " ");
 
   if (a && strtok(NULL, " ") != (char*)NULL) {
@@ -278,25 +300,86 @@ int com_print(char* arg) {
     return -1;
   }
 
-// XXX: add range of sectors to print
-  mf_size_t size = parse_size_default(a, MF_1K);
+  mf_ident_tag();
+  return 0;
+}
 
-  if (size == MF_INVALID_SIZE) {
-    printf("Unknown argument: %s\n", a);
+int com_check_tag(char* arg) {
+  return 0;
+}
+
+int com_devices(char* arg) {
+  return mf_devices();
+}
+
+int com_version(char* arg) {
+  return mf_version();
+}
+
+int com_print_blocks(char* arg) {
+  char* a = strtok(arg, " ");
+
+  if (a && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
     return -1;
   }
 
-  print_tag(size);
+  size_t size1 = 0, size2 = MF_1K/sizeof(mf_block_t)-1;
+  if (parse_range(a, &size1, &size2, 0) != 0) {
+    mf_size_t size = parse_size_default(a, MF_1K);
+    size1 = 0;
+    size2 = size/sizeof(mf_block_t) - 1;
+
+    if (size == MF_INVALID_SIZE) {
+      printf("Unknown argument: %s\n", a);
+      return -1;
+    }
+  }
+
+  if (size2 > MF_4K/sizeof(mf_block_t)-1 || size1 > size2) {
+    printf("Invalid argument: %s (parsed as: %lu - %lu)\n", a, size1, size2 );
+    return -1;
+  }
+
+  print_tag_block_range(size1, size2);
 
   return 0;
 }
 
-int com_print_head(char* arg) {
-  print_tag_head();
+int com_print_sectors(char* arg) {
+  char* a = strtok(arg, " ");
+
+  if (a && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  size_t size1 = 0, size2 = block_to_sector(MF_1K/sizeof(mf_block_t)-1);
+  if (parse_range(a, &size1, &size2, 0) != 0) {
+    mf_size_t size = parse_size_default(a, MF_1K);
+    if (size == MF_INVALID_SIZE) {
+      printf("Unknown argument: %s\n", a);
+      return -1;
+    }
+    size1 = 0;
+    size2 = block_to_sector(size/sizeof(mf_block_t) - 1);
+  }
+
+  if (size2 > 0x1b || size1 > size2) {
+    printf("Invalid argument: %s (parsed as: %lu - %lu)\n", a, size1, size2 );
+    return -1;
+  }
+
+  print_tag_block_range(sector_to_header(size1), sector_to_trailer(size2));
+
   return 0;
 }
 
-int com_set(char* arg) {
+int com_print_perm(char* arg) {
+  return 0;
+}
+
+int com_put(char* arg) {
   char* block_str = strtok(arg, " ");
   char* offset_str = strtok(NULL, " ");
   char* byte_str = strtok(NULL, " ");
@@ -306,52 +389,108 @@ int com_set(char* arg) {
     return -1;
   }
 
-  unsigned int block = (unsigned int) strtoul(block_str, &block_str, 16);
-  if (*block_str != '\0') {
-    printf("Invalid block character (non hex): %s\n", block_str);
+  size_t block1 = 0, block2 = MF_1K/sizeof(mf_block_t)-1;
+  if (parse_range(block_str, &block1, &block2, 0) != 0) {
+    printf("Invalid block range: %s\n", block_str);
     return -1;
   }
-  if (block > 0xff) {
-    printf("Invalid block [0,ff]: %x\n", block);
+  if (block2 > 0xff || block1 > block2) {
+    printf("Invalid block range: %lu - %lu\n", block1, block2);
     return -1;
   }
 
-  unsigned int offset = (unsigned int) strtoul(offset_str, &offset_str, 16);
+  size_t offset = strtoul(offset_str, &offset_str, 0);
   if (*offset_str != '\0') {
-    printf("Invalid offset character (non hex): %s\n", offset_str);
+    printf("Invalid offset: %s\n", offset_str);
     return -1;
   }
   if (offset > 0x0f) {
-    printf("Invalid offset [0,f]: %x\n", offset);
+    printf("Invalid offset [0,15]: %lu\n", offset);
     return -1;
   }
 
-  // Consume the byte tokens
-  do {
-    long int byte = strtol(byte_str, &byte_str, 16);
-    if (*byte_str != '\0') {
-      printf("Invalid byte character (non hex): %s\n", byte_str);
+  // Consume the byte tokens or ASCII string
+  uint8_t bytes[16];
+  uint8_t* b = bytes+offset;
+  size_t count = 0;
+  if( *byte_str == '"' ) {
+    // ASCII string
+    byte_str++;
+    int escape = 0;
+    do {
+      if( !escape && *byte_str == '"' ) {
+        break;
+      }
+      if( !escape && *byte_str == '\\' ) {
+        escape = 1;
+        byte_str++;
+        continue;
+      }
+
+      // store value
+      if (count+offset > 15) {
+        printf("Too many bytes specified.\n");
+        return -1;
+      }
+      *b++ = (uint8_t)*byte_str++;
+      count++;
+      escape = 0;
+    } while(*byte_str != '\0');
+    if(*byte_str != '"') {
+      printf("Unterminated string.\n");
       return -1;
     }
-    if (byte < 0 || byte > 0xff) {
-      printf("Invalid byte value [0,ff]: %lx\n", byte);
+    if(strtok(NULL, " ") != (char*)NULL) {
+      printf("Too many arguments.\n");
       return -1;
     }
+  }
+  else {
+    // byte tokens
+    do {
+      long int byte = strtol(byte_str, &byte_str, 16);
+      if (*byte_str != '\0') {
+        printf("Invalid byte character (non hex): %s\n", byte_str);
+        return -1;
+      }
+      if (byte < 0 || byte > 0xff) {
+        printf("Invalid byte value [0,ff]: %lx\n", byte);
+        return -1;
+      }
 
-    if (offset > 0x0f) {
-      printf("Too many bytes specified.\n");
-      return -1;
-    }
+      // Save the data
+      if (count+offset > 15) {
+        printf("Too many bytes specified.\n");
+        return -1;
+      }
+      *b++ = (uint8_t)byte;
+      count++;
+    } while((byte_str = strtok(NULL, " ")) != (char*)NULL);
+  }
 
-    // Write the data
-    current_tag.amb[block].mbd.abtData[offset++] = (uint8_t)byte;
+  if (count == 0) {
+    printf("No bytes specified.\n");
+    return -1;
+  }
 
-  } while((byte_str = strtok(NULL, " ")) != (char*)NULL);
+  // Write the data to each block in the given range
+  for( size_t block = block1; block <= block2; block++ )
+  {
+    memcpy( current_tag.amb[block].mbd.abtData+offset, bytes+offset, count );
+  }
 
   return 0;
 }
 
-int com_setuid(char* arg) {
+int com_put_key(char* arg) {
+  return 0;
+}
+
+int com_put_perm(char* arg) {
+  return 0;
+}
+
+int com_put_uid(char* arg) {
   char* byte_str = strtok(arg, " ");
   uint8_t uid[7];
   unsigned int i = 0;
@@ -385,6 +524,17 @@ int com_setuid(char* arg) {
   memcpy( current_tag.amb[0].mbd.abtData, uid, i );
 
   return 0;
+}
+
+int com_gen2_wipe(char* arg) {
+  char* yes_str = strtok(arg, " ");
+
+  if (!yes_str || strncmp( yes_str, "YES!", 4 ) != 0 || strtok(NULL, " ") != (char*)NULL) {
+    printf("This command permanently wipes the entire card! Provide a single argument saying YES! to proceed.\n");
+    return -1;
+  }
+
+  return mf_gen2_wipe();
 }
 
 int com_gen3_writeuid(char* arg) {
@@ -451,6 +601,22 @@ int com_print_ac(char* arg) {
   return 0;
 }
 
+int com_set(char* arg) {
+  return 0;
+}
+
+int com_set_auth(char* arg) {
+  return 0;
+}
+
+int com_set_device(char* arg) {
+  return 0;
+}
+
+int com_set_size(char* arg) {
+  return 0;
+}
+
 int com_keys_load(char* arg) {
   int res = load_auth(arg);
   if (res == 0)
@@ -470,8 +636,8 @@ int com_keys_clear(char* arg) {
   return 0;
 }
 
-int com_keys_set(char* arg) {
-  // Arg format: A|B #S key
+int com_keys_put(char* arg) {
+  // Arg format: A|B|AB #sector key
 
   char* ab = strtok(arg, " ");
   char* sector_str = strtok(NULL, " ");
@@ -487,16 +653,14 @@ int com_keys_set(char* arg) {
     return -1;
   }
 
-  // Read sector    XXX: Add ranges and * catch-all to set multiple sectors
-  long int sector = strtol(sector_str, &sector_str, 16);
-
-  // Sanity check sector range
-  if (*sector_str != '\0') {
-    printf("Invalid sector character (non hex): %s\n", sector_str);
+  // Read sector
+  size_t sector1 = 0, sector2 = MF_1K/sizeof(mf_block_t) - 1;
+  if (parse_range( sector_str, &sector1, &sector2, 0) != 0) {
+    printf("Invalid sectors: %s\n", sector_str);
     return -1;
   }
-  if (sector < 0 || sector > 0x1b) {
-    printf("Invalid sector [0,1b]: %lx\n", sector);
+  if (sector2 > 0x1b || sector1 > sector2) {
+    printf("Invalid sectors [0,1b]: %lu - %lu\n", sector1, sector2);
     return -1;
   }
 
@@ -508,25 +672,29 @@ int com_keys_set(char* arg) {
     return -1;
   }
 
-  // Compute the block that houses the key for the desired sector
-  size_t block = sector_to_trailer((size_t)sector);
-
-  // Parse key selection and point to appropriate key
-  uint8_t* key;
+  // parse key type
   mf_key_type_t key_type = parse_key_type(ab);
-  if (key_type == MF_KEY_A)
-    key = current_auth.amb[block].mbt.abtKeyA;
-  else if (key_type == MF_KEY_B)
-    key = current_auth.amb[block].mbt.abtKeyB;
-  else {
+  if (key_type != MF_KEY_A && key_type != MF_KEY_B) {
     printf("Invalid argument (A|B): %s\n", ab);
     return -1;
   }
 
   // Parse the key
+  uint8_t key[6];  
   if (read_key(key, key_str) == NULL) {
     printf("Invalid key character (non hex)\n");
     return -1;
+  }
+
+  for( size_t sector = sector1; sector <= sector2; sector++ ) {
+    // Compute the block that houses the key for the desired sector
+    size_t block = sector_to_trailer(sector);
+
+    // copy to appropriate key
+    if (key_type == MF_KEY_A)
+      memcpy( current_auth.amb[block].mbt.abtKeyA, key, sizeof(key) );
+    else if (key_type == MF_KEY_B)
+      memcpy( current_auth.amb[block].mbt.abtKeyB, key, sizeof(key) );
   }
 
   return 0;
@@ -534,6 +702,10 @@ int com_keys_set(char* arg) {
 
 int com_keys_import(char* arg) {
   import_auth();
+  return 0;
+}
+
+int com_keys_export(char* arg) {
   return 0;
 }
 
@@ -872,6 +1044,29 @@ mf_key_type_t parse_key_type_default(const char* str,
   if (str == NULL)
     return default_type;
   return parse_key_type(str);
+}
+
+// read (positive) number range
+// D (a=b=D), D- (a=D, b unchanged), -D (a unchanged, b=D), D1-D2 (a=D1,b=D2) , - (a and b unchanged)
+int parse_range(const char* str, size_t* a, size_t* b, int base) {
+  if (str == NULL || *str == '\0')
+    return -1;
+  const char* s = str;
+  if (*s != '-')
+  {
+    // read first number
+    *a = (unsigned int)strtol(s, (char**)&s, base);
+    if (*s == '\0') {
+      *b = *a;
+      return 0;
+    }
+  }
+  if (*s != '-') return -1;
+  s++;
+  if (*s == '\0') return 0;
+  // read second number
+  *b = (unsigned int)strtol(s, (char**)&s, base);
+  return (*s == '\0') ? 0 : -1;
 }
 
 // Any command starting with '.' - path spec

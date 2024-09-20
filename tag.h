@@ -89,6 +89,9 @@ size_t sector_count(mf_size_t size);
 // Return > 0 if the block is a trailer, 0 otherwise.
 int is_trailer_block(size_t block);
 
+// Return > 0 if the block is a header, 0 otherwise.
+int is_header_block(size_t block);
+
 // Return the sector index of the block
 size_t block_to_sector(size_t block);
 
@@ -97,6 +100,9 @@ size_t block_to_header(size_t block);
 
 // Return the trailer block for the specified block
 size_t block_to_trailer(size_t block);
+
+// Return the header block for the specified sector
+size_t sector_to_header(size_t sector);
 
 // Return the trailer block for the specified sector
 size_t sector_to_trailer(size_t sector);

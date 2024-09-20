@@ -212,6 +212,8 @@ void print_tag_data_range(size_t byte_offset, size_t bit_offset,
 
 
 void print_tag_block_range(size_t first, size_t last) {
+  if( last > sizeof(mf_tag_t)/sizeof(mf_block_t) )
+    last = sizeof(mf_tag_t)/sizeof(mf_block_t);
 
   // Print header
   printf("xS  xB  00                   07 08                   0f        ASCII       \n");
@@ -418,7 +420,11 @@ size_t sector_count(mf_size_t size) {
 }
 
 int is_trailer_block(size_t block) {
-  return (block + 1) % (block < 0x80 ? 4 : 0x10) == 0;
+  return is_header_block(block + 1);
+}
+
+int is_header_block(size_t block) {
+  return (block) % (block < 0x40 ? 4 : 0x10) == 0;
 }
 
 size_t block_to_sector(size_t block) {
@@ -442,6 +448,14 @@ size_t block_to_trailer(size_t block)
     return block + (3 - (block % 4));
 
   return block + (0xf - (block % 0x10));
+}
+
+// Return the header block for the specified sector
+size_t sector_to_header(size_t sector) {
+  if (sector < 0x10)
+    return sector * 4;
+  else
+    return 0x10 * 4 + (sector - 0x10) * 0x10;
 }
 
 // Return the trailer block for the specified sector

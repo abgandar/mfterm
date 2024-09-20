@@ -27,8 +27,9 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <getopt.h>
-#include "term_cmd.h"
+#include <nfc/nfc.h>
 #include "mfterm.h"
+#include "term_cmd.h"
 #include "util.h"
 #include "spec_syntax.h"
 
@@ -57,6 +58,7 @@ int main(int argc, char** argv) {
   parse_cmdline(argc, argv);
   initialize_readline();
   input_loop();
+  write_history("~/.mfterm_history");
   return 0;
 }
 
@@ -153,6 +155,7 @@ void initialize_readline()
 {
   rl_readline_name = "MFT";
   rl_attempted_completion_function = (rl_completion_func_t*)mft_completion;
+  read_history("~/.mfterm_history");
 }
 
 /* Attempt to complete on the contents of TEXT.  START and END bound the

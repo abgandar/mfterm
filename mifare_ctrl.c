@@ -46,11 +46,14 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <nfc/nfc.h>
 #include "mifare.h"
 #include "tag.h"
 #include "mifare_ctrl.h"
+
+settings_t settings = { "", MF_KEY_A, MF_1K };
 
 // State of the device/tag - should be NULL between high level calls.
 static nfc_device* device = NULL;
@@ -68,38 +71,48 @@ static const nfc_modulation mf_nfc_modulation = {
 static uint8_t abtRx[MAX_FRAME_LEN];
 static int szRxBits;
 
+typedef struct {
+  const char* mfc;
+  const char* name;
+  const char* id;
+  unsigned int len;
+} card_ident_t;
+
+// list of known cards
+static const card_ident_t cards[] = {
+  { "NXP",        "Mifare mini",         "\x00\x04\x09", 3 },
+  { "NXP",        "Mifare Classic 1k",   "\x00\x04\x08", 3 },
+  { "NXP",        "Mifare Classic 4k",   "\x00\x02\x18", 3 },
+  { "NXP",        "Mifare Ultralight",   "\x00\x44\x00", 3 },
+  { "NXP",        "Mifare DESFire",      "\x03\x44\x20\x75\x77\x81\x02\x80", 8 },
+  { "IBM",        "JCOP31",              "\x03\x04\x28\x38\x77\xb1\x4a\x43\x4f\x50\x33\x31", 12 },
+  { "IBM",        "JCOP31 v2.4.1",       "\x00\x48\x20\x78\x77\xb1\x02\x4a\x43\x4f\x50\x76\x32\x34\x31", 15 },
+  { "IBM",        "JCOP41 v2.2",         "\x00\x48\x20\x38\x33\xb1\x4a\x43\x4f\x50\x34\x31\x56\x32\x32", 15 },
+  { "IBM",        "JCOP41 v2.3.1",       "\x00\x04\x28\x38\x33\xb1\x4a\x43\x4f\x50\x34\x31\x56\x32\x33\x31", 16 },
+  { "Infineon",   "Mifare Classic 1k",   "\x00\x04\x88", 3 },
+  { "Gemplus",    "MPCOS",               "\x00\x02\x98", 3 },
+  { "Nokia",      "Mifare Classic 4k",   "\x00\x02\x38", 3 },
+  { "Nokia",      "Mifare Classic 4k",   "\x00\x08\x38", 3 },
+  { "Unknown",    "Unknown",             "", 0 }
+};
+
 
 int mf_connect();
 int mf_disconnect(int ret_state);
-
 bool mf_configure_device();
 bool mf_select_target();
-
-bool mf_authenticate(size_t block,
-                     const uint8_t* key,
-                     mf_key_type_t key_type);
-
+bool mf_authenticate(size_t block, const uint8_t* key, mf_key_type_t key_type);
 bool mf_unlock();
-
-bool mf_read_tag_internal(mf_tag_t* tag,
-                          const mf_tag_t* keys,
-                          mf_key_type_t key_type);
-
-bool mf_write_tag_internal(const mf_tag_t* tag,
-                           const mf_tag_t* keys,
-                           mf_key_type_t key_type);
-
+bool mf_read_tag_internal(mf_tag_t* tag, const mf_tag_t* keys, mf_key_type_t key_type);
+bool mf_write_tag_internal(const mf_tag_t* tag, const mf_tag_t* keys, mf_key_type_t key_type);
 bool mf_dictionary_attack_internal(mf_tag_t* tag);
-
-bool mf_test_auth_internal(const mf_tag_t* keys,
-                           mf_size_t size,
-                           mf_key_type_t key_type);
-
+bool mf_test_auth_internal(const mf_tag_t* keys, mf_size_t size, mf_key_type_t key_type);
 
 bool transmit_bits(const uint8_t *pbtTx, const size_t szTxBits);
 bool transmit_bytes(const uint8_t *pbtTx, const size_t szTx);
 
 int mf_disconnect(int ret_state) {
+  nfc_abort_command(device);
   nfc_close(device);
   nfc_exit(context);
   device = NULL;
@@ -108,7 +121,6 @@ int mf_disconnect(int ret_state) {
 }
 
 int mf_connect() {
-
   // Initialize libnfc and set the nfc_context
   nfc_init(&context);
 
@@ -160,11 +172,32 @@ int mf_connect() {
   return 0; // Indicate success - we are now connected
 }
 
+int mf_devices() {
+  nfc_connstring devs[8];
+
+  nfc_init(&context);
+  size_t n = nfc_list_devices( context, devs, 0 );
+  if(n == 0) {
+    printf("No devices found.\n");
+    nfc_exit(context);
+    return -1;
+  }
+  printf("%u devices found:\n", (unsigned int)n);
+  for( size_t i = 0; i < n; i++ )
+    printf("%s\n", devs[i]);
+
+  nfc_exit(context);
+  return 0;
+}
 
 int mf_read_tag(mf_tag_t* tag, mf_key_type_t key_type) {
-
   if (mf_connect())
     return -1; // No need to disconnect here
+
+  // print the card UID
+  printf("Target UID:");
+  for( size_t i = 0; i < target.nti.nai.szUidLen; i++ ) printf(" %02x", target.nti.nai.abtUid[i]);
+  printf("\n");
 
   if (key_type == MF_KEY_UNLOCKED) {
     if (!mf_unlock()) {
@@ -215,7 +248,6 @@ int mf_write_tag(const mf_tag_t* tag, mf_key_type_t key_type) {
 }
 
 int mf_dictionary_attack(mf_tag_t* tag) {
-
   if (mf_connect()) {
     return -1; // No need to disconnect here
   }
@@ -229,10 +261,7 @@ int mf_dictionary_attack(mf_tag_t* tag) {
 }
 
 
-int mf_test_auth(const mf_tag_t* keys,
-                 mf_size_t size,
-                 mf_key_type_t key_type) {
-
+int mf_test_auth(const mf_tag_t* keys, mf_size_t size, mf_key_type_t key_type) {
   if (mf_connect()) {
     return -1; // No need to disconnect here
   }
@@ -247,7 +276,6 @@ int mf_test_auth(const mf_tag_t* keys,
 
 
 bool mf_configure_device() {
-
   // Disallow invalid frame
   if (nfc_device_set_property_bool(device, NP_ACCEPT_INVALID_FRAMES, false) < 0)
     return false;
@@ -303,11 +331,49 @@ bool mf_select_target() {
  * Unlocking the card allows writing to block 0 of some pirate cards.
  */
 bool mf_unlock() {
-  static uint8_t  abtHalt[4] = { 0x50, 0x00, 0x00, 0x00 };
+  uint8_t  abtHalt[4] = { 0x50, 0x00, 0x00, 0x00 };
 
   // Special unlock command
-  static const uint8_t  abtUnlock1[1] = { 0x40 };
-  static const uint8_t  abtUnlock2[1] = { 0x43 };
+  const uint8_t  abtUnlock1[1] = { 0x40 };
+  const uint8_t  abtUnlock2[1] = { 0x43 };
+
+  // Disable CRC and parity checking
+  if (nfc_device_set_property_bool(device, NP_HANDLE_CRC, false) < 0)
+    return false;
+
+  // Disable easy framing. Use raw send/receive methods
+  if (nfc_device_set_property_bool (device, NP_EASY_FRAMING, false) < 0)
+    return false;
+
+  // Initialize transmision
+  iso14443a_crc_append(abtHalt, 2);
+  transmit_bytes(abtHalt, 4);
+
+  // Send unlock
+  if (!transmit_bits (abtUnlock1, 7))
+    return false;
+
+  if (!transmit_bytes (abtUnlock2, 1))
+    return false;
+
+  // Reset reader configuration. CRC and easy framing.
+  if (nfc_device_set_property_bool (device, NP_HANDLE_CRC, true) < 0)
+    return false;
+  if (nfc_device_set_property_bool (device, NP_EASY_FRAMING, true) < 0)
+    return false;
+
+  return true;
+}
+
+/**
+ * This command wipes the entire card for GEN2 CUID cards.
+ */
+int mf_gen2_wipe() {
+  uint8_t  abtHalt[4] = { 0x50, 0x00, 0x00, 0x00 };
+
+  // Special unlock command
+  const uint8_t  abtUnlock1[1] = { 0x40 };
+  const uint8_t  abtUnlock2[1] = { 0x41 };
 
   // Disable CRC and parity checking
   if (nfc_device_set_property_bool(device, NP_HANDLE_CRC, false) < 0)
@@ -421,8 +487,7 @@ int mf_gen3_lock() {
   return mf_disconnect(0);
 }
 
-bool mf_read_tag_internal(mf_tag_t* tag,
-                          const mf_tag_t* keys, mf_key_type_t key_type) {
+bool mf_read_tag_internal(mf_tag_t* tag, const mf_tag_t* keys, mf_key_type_t key_type) {
   mifare_param mp;
 
   static mf_tag_t buffer_tag;
@@ -433,27 +498,25 @@ bool mf_read_tag_internal(mf_tag_t* tag,
   printf("Reading: ["); fflush(stdout);
 
   // Read the card from end to begin
-  for (int block_it = (int)block_count(size) - 1; block_it >= 0; --block_it) {
-    size_t block = (size_t)block_it;
+  for (size_t block = 0; block < block_count(size); block++) {
+    bzero(mp.mpd.abtData, 0x10);
 
-    // Print progress for the unlocked read
-    if (key_type == MF_KEY_UNLOCKED && is_trailer_block(block)) {
-      printf("."); fflush(stdout);
+    // Print sector progress
+    if (is_header_block(block)) {
+      printf("%02zx", block_to_sector(block)); fflush(stdout);
     }
 
-    // Authenticate everytime we reach a trailer block
+    // Authenticate everytime we reach a header block
     // unless we are doing an unlocked read
-    if (key_type != MF_KEY_UNLOCKED && is_trailer_block(block)) {
+    if (key_type != MF_KEY_UNLOCKED && is_header_block(block)) {
 
       // Try to authenticate for the current sector
       uint8_t* key = key_from_tag(keys, key_type, block);
       if (!mf_authenticate(block, key, key_type)) {
         // Progress indication and error report
-        printf("0x%02zx", block_to_sector(block));
-        if (block != 3) printf(".");
-        fflush(stdout);
+        for(size_t i = 0; i < sector_size(block); i++) printf("?");
 
-        block_it -= (int)sector_size(block) - 1; // Skip the rest of the sector blocks
+        block += sector_size(block)-1; // Skip the rest of the sector blocks
         error = 1;
       }
       else {
@@ -466,44 +529,49 @@ bool mf_read_tag_internal(mf_tag_t* tag,
           // Store the retrieved access bits in the tag buffer
           memcpy(buffer_tag.amb[block].mbt.abtAccessBits,
                  mp.mpd.abtData + 6, 4);
+          printf(".");
         } else {
-          printf ("\nUnable to read trailer block: 0x%02zx.\n", block);
-          return false;
+          printf ("!");
+          error = 1;
         }
-        printf("."); fflush(stdout); // Progress indicator
       }
     }
 
     else { // I.e. not a sector trailer
       // Try to read out the block
+      bzero(mp.mpd.abtData, 0x10);
       if (!nfc_initiator_mifare_cmd(device, MC_READ, (uint8_t)block, &mp)) {
-        printf("\nUnable to read block: 0x%02zx.\n", block);
-        return false;
+        printf("!");
+        error = 1;
       }
       memcpy(buffer_tag.amb[block].mbd.abtData, mp.mpd.abtData, 0x10);
     }
+    fflush(stdout);
   }
 
   // Terminate progress indicator
   if (error)
-    printf("] Auth errors in indicated sectors.\n");
+    printf("] Errors in indicated blocks.\n");
   else
     printf("] Success!\n");
 
   // Success! Copy the data
-  // todo: Or return static ptr?
   memcpy(tag, &buffer_tag, MF_4K);
 
   return true;
 }
 
 
-bool mf_write_tag_internal(const mf_tag_t* tag,
-                           const mf_tag_t* keys,
-                           mf_key_type_t key_type) {
-
+bool mf_write_tag_internal(const mf_tag_t* tag, const mf_tag_t* keys, mf_key_type_t key_type) {
   mifare_param mp;
   int error = 0;
+
+  // do not write a block 0 with incorrect BCC - card will be made invalid!
+  if (key_type == MF_KEY_UNLOCKED && (tag->amb[0].mbd.abtData[0] ^ tag->amb[0].mbd.abtData[1] ^ tag->amb[0].mbd.abtData[2] ^
+      tag->amb[0].mbd.abtData[3] ^ tag->amb[0].mbd.abtData[4]) != 0x00) {
+    printf ("\nError: incorrect BCC in MFD file!\n"); // ADD DATA
+    return false;
+  }
 
   printf("Writing %s tag [", sprint_size(size)); fflush(stdout);
 
@@ -513,15 +581,16 @@ bool mf_write_tag_internal(const mf_tag_t* tag,
        header_block_it = sector_header_iterator(size)) {
     size_t header_block = (size_t)header_block_it;
 
+    // Progress
+    printf("%02zx", block_to_sector(header_block));
+    fflush(stdout);
+
     // Authenticate
     uint8_t* key = key_from_tag(keys, key_type, header_block);
     if (key_type != MF_KEY_UNLOCKED) {
       if (!mf_authenticate(header_block, key, key_type)) {
         // Progress indication and error report
-        if (header_block != 0) printf(".");
-        printf("0x%02zx", block_to_sector(header_block));
-        fflush(stdout);
-
+        for(size_t i = 0; i < sector_size(header_block); i++) printf("?");
         error = 1;
         continue; // Skip the rest of the sector blocks
       }
@@ -532,26 +601,21 @@ bool mf_write_tag_internal(const mf_tag_t* tag,
          block < trailer; ++block) {
 
       // First block on tag is read only - skip it unless unlocked
-      if (block == 0 && key_type != MF_KEY_UNLOCKED)
+      if (block == 0 && key_type != MF_KEY_UNLOCKED) {
+        printf(" ");
+        fflush(stdout);
         continue;
+      }
 
       // Try to write the data block
       memcpy (mp.mpd.abtData, tag->amb[block].mbd.abtData, 0x10);
-
-      // do not write a block 0 with incorrect BCC - card will be made invalid!
-      if (block == 0) {
-        if((mp.mpd.abtData[0] ^ mp.mpd.abtData[1] ^ mp.mpd.abtData[2] ^
-            mp.mpd.abtData[3] ^ mp.mpd.abtData[4]) != 0x00) {
-          printf ("\nError: incorrect BCC in MFD file!\n"); // ADD DATA
-          return false;
-        }
-      }
-
-      // Write the data block
       if (!nfc_initiator_mifare_cmd(device, MC_WRITE, (uint8_t)block, &mp)) {
-        printf("\nUnable to write block: 0x%02zx.\n", block);
-        return false;
+        error++;
+        printf("!");
+      } else {
+        printf(".");
       }
+      fflush(stdout);
     }
 
     // Auth ok and sector read ok, finish up by reading trailer
@@ -562,8 +626,10 @@ bool mf_write_tag_internal(const mf_tag_t* tag,
 
     // Try to write the trailer
     if (!nfc_initiator_mifare_cmd(device, MC_WRITE, (uint8_t)trailer_block, &mp)) {
-      printf("\nUnable to write block: 0x%02zx.\n", trailer_block);
-      return false;
+      printf("0X%02zx", trailer_block);
+      fflush(stdout);
+      //return false;
+      error++;
     }
 
     printf("."); fflush(stdout); // Progress indicator
@@ -571,7 +637,7 @@ bool mf_write_tag_internal(const mf_tag_t* tag,
 
   // Terminate progress indicator
   if (error)
-    printf("] Auth errors in indicated sectors.\n");
+    printf("] Errors in indicated sectors/blocks.\n");
   else
     printf("] Success!\n");
 
@@ -580,7 +646,6 @@ bool mf_write_tag_internal(const mf_tag_t* tag,
 
 
 bool mf_dictionary_attack_internal(mf_tag_t* tag) {
-
   // Tag buffer to swap in if we find all keys
   int all_keys_found = 1;
   static mf_tag_t buffer_tag;
@@ -662,10 +727,7 @@ bool mf_dictionary_attack_internal(mf_tag_t* tag) {
 }
 
 
-bool mf_test_auth_internal(const mf_tag_t* keys,
-                          mf_size_t size,
-                          mf_key_type_t key_type) {
-
+bool mf_test_auth_internal(const mf_tag_t* keys, mf_size_t size, mf_key_type_t key_type) {
   printf("xS  T  Key           Status\n");
   printf("----------------------------\n");
 
@@ -680,15 +742,12 @@ bool mf_test_auth_internal(const mf_tag_t* keys,
            key_type,
            sprint_key(key));
 
-
     if (!mf_authenticate(block, key, key_type)) {
-      printf("Failure");
+      printf("Failure\n");
     }
     else {
-      printf("Success");
+      printf("Success\n");
     }
-
-    printf("\n");
   }
 
   return true;
@@ -696,7 +755,6 @@ bool mf_test_auth_internal(const mf_tag_t* keys,
 
 
 bool mf_authenticate(size_t block, const uint8_t* key, mf_key_type_t key_type) {
-
   mifare_param mp;
 
   // Set the authentication information (uid)
@@ -713,11 +771,46 @@ bool mf_authenticate(size_t block, const uint8_t* key, mf_key_type_t key_type) {
     return true;
 
   // Do the hand shaking again if auth failed
-  nfc_initiator_select_passive_target(device, mf_nfc_modulation,
-                                      NULL, 0, &target);
+  nfc_initiator_select_passive_target(device, mf_nfc_modulation, NULL, 0, &target);
 
   return false;
 }
+
+// print public card information
+int mf_ident_tag()
+{
+  if(mf_connect())
+    return -1;
+
+  const card_ident_t* c;
+  uint8_t id[32];
+  id[0] = target.nti.nai.abtAtqa[0];
+  id[1] = target.nti.nai.abtAtqa[1];
+  id[2] = target.nti.nai.btSak;
+  memcpy(id+3, target.nti.nai.abtAts, sizeof(id)-3);
+  for( c = cards; c->len > 0 && memcmp(id, c->id, c->len) != 0; c++ );
+ 
+  printf("ATQA: %02x %02x  SAK: %02x", target.nti.nai.abtAtqa[0], target.nti.nai.abtAtqa[1], target.nti.nai.btSak);
+  if( target.nti.nai.szAtsLen > 0 ) {
+    printf("  ATS:");
+    for( size_t i = 0; i < target.nti.nai.szAtsLen; i++ )
+      printf(" %02x", target.nti.nai.abtAts[i]);
+  }
+  printf("  UID:");
+  for( size_t i = 0; i < target.nti.nai.szUidLen; i++ )
+    printf(" %02x", target.nti.nai.abtUid[i]);
+  printf("\nManufacturer: %s  Type: %s\n", c->mfc, c->name);
+
+  return mf_disconnect(0);
+}
+
+// print version info
+int mf_version()
+{
+  printf("Version %s.   libnfc version: %s\n", "VERSION", nfc_version() );
+  return 0;
+}
+
 
 bool transmit_bits(const uint8_t *pbtTx, const size_t szTxBits)
 {
@@ -727,7 +820,6 @@ bool transmit_bits(const uint8_t *pbtTx, const size_t szTxBits)
 
   return true;
 }
-
 
 bool transmit_bytes(const uint8_t *pbtTx, const size_t szTx)
 {
