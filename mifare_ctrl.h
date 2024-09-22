@@ -32,8 +32,8 @@
  */
 typedef struct {
   nfc_connstring device;
-  mf_key_type_t auth;
-  mf_size_t size;
+  const char* auth;
+  const char* size;
 } settings_t;
 
 extern settings_t settings;
@@ -49,7 +49,7 @@ int mf_devices();
  * all zeroes.
  * Return 0 on success != 0 on failure.
  */
-int mf_read_tag(mf_tag_t* tag, mf_key_type_t key_type);
+int mf_read_blocks(mf_tag_t* tag, mf_key_type_t key_type, size_t a, size_t b);
 
 /**
  * Connect to an nfc device. The write the tag data, authenticating with
@@ -60,7 +60,7 @@ int mf_read_tag(mf_tag_t* tag, mf_key_type_t key_type);
  * write. This allows some pirate cards to write block 0.
  * Return 0 on success != 0 on failure.
  */
-int mf_write_tag(const mf_tag_t* tag, mf_key_type_t key_type);
+int mf_write_blocks(const mf_tag_t* tag, mf_key_type_t key_type, size_t a, size_t b);
 
 /**
  * Connect to an nfc device.  Then, for each sector in turn, try keys in the
@@ -77,9 +77,7 @@ int mf_dictionary_attack(mf_tag_t* tag);
  * or failure for each sector. Finally, disconnect from the device.
  * Return 0 on success != 0 on failure.
  */
-int mf_test_auth(const mf_tag_t* keys,
-                 mf_size_t size,
-                 mf_key_type_t key_type);
+int mf_test_auth(const mf_tag_t* keys, size_t size1, size_t size2, mf_key_type_t key_type);
 
 /**
  * GEN2 special commands

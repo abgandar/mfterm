@@ -27,25 +27,27 @@
 mf_tag_t current_tag;
 mf_tag_t current_auth;
 
-void strip_non_auth_data(mf_tag_t* tag);
+void clear_non_auth_data(mf_tag_t* tag);
 int load_mfd(const char* fn, mf_tag_t* tag);
 int save_mfd(const char* fn, const mf_tag_t* tag);
+int load_txt(const char* fn, mf_tag_t* tag);
+int save_txt(const char* fn, const mf_tag_t* tag);
 
 int load_mfd(const char* fn, mf_tag_t* tag) {
+  mf_tag_t temp;
   FILE* mfd_file = fopen(fn, "rb");
 
   if (mfd_file == NULL) {
-    printf("Could not open file: %s\n", fn);
     return 1;
   }
 
-  if (fread(tag, 1, sizeof(mf_tag_t), mfd_file) != sizeof(mf_tag_t)) {
-    printf("Could not read file: %s\n", fn);
+  if (fread(&temp, 1, sizeof(mf_tag_t), mfd_file) != sizeof(mf_tag_t)) {
     fclose(mfd_file);
-    return 1;
+    return 2;
   }
 
   fclose(mfd_file);
+  memcpy(tag, &temp, sizeof(mf_tag_t));
   return 0;
 }
 
@@ -53,17 +55,67 @@ int save_mfd(const char* fn, const mf_tag_t* tag) {
   FILE* mfd_file = fopen(fn, "w");
 
   if (mfd_file == NULL) {
-    printf("Could not open file for writing: %s\n", fn);
     return 1;
   }
 
   if (fwrite(tag, 1, sizeof(mf_tag_t), mfd_file) != sizeof(mf_tag_t)) {
-    printf("Could not write file: %s\n", fn);
     fclose(mfd_file);
-    return 1;
+    return 2;
   }
 
   fclose(mfd_file);
+  return 0;
+}
+
+int load_txt(const char* fn, mf_tag_t* tag) {
+  mf_tag_t temp;
+  FILE* key_file = fopen(fn, "r");
+
+  if (key_file == NULL) {
+    return 1;
+  }
+
+  for (size_t sector = 0; sector < sector_count(MF_4K); sector++) {
+    uint8_t k[12];
+    if( fscanf( key_file, "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx %2hhx%2hhx%2hhx%2hhx%2hhx%2hhx", k, k+1, k+2, k+3, k+4, k+5, k+6, k+7, k+8, k+9, k+10, k+11 ) != 12 )
+    {
+      fclose(key_file);
+      return 2;
+    }
+
+    size_t block = sector_to_trailer(sector);
+    key_to_tag(&temp, k, MF_KEY_A, block);
+    key_to_tag(&temp, k+6, MF_KEY_B, block);
+  }
+
+  fclose(key_file);
+  memcpy(tag, &temp, sizeof(mf_tag_t));
+  return 0;
+}
+
+int save_txt(const char* fn, const mf_tag_t* tag) {
+ FILE* key_file = fopen(fn, "w");
+
+  if (key_file == NULL) {
+    return 1;
+  }
+
+  for (size_t sector = 0; sector < sector_count(MF_4K); sector++) {
+    size_t block = sector_to_trailer(sector);
+
+    const uint8_t* key = key_from_tag(tag, MF_KEY_A, block);
+    const int r1 = fprintf(key_file, "%s\t", sprint_key(key));
+
+    key = key_from_tag(tag, MF_KEY_B, block);
+    const int r2 = fprintf(key_file, "%s\n", sprint_key(key));
+ 
+    if (r1 < 0 || r2 < 0) {
+      fclose(key_file);
+      return 2;
+    }
+  }
+
+  fclose(key_file);
   return 0;
 }
 
@@ -76,43 +128,56 @@ int save_tag(const char* fn) {
 }
 
 int load_auth(const char* fn) {
-  if (load_mfd(fn, &current_auth))
-    return 1;
+  if (load_txt(fn, &current_auth) == 0)
+    return 0;
 
-  strip_non_auth_data(&current_auth);
+  if (load_mfd(fn, &current_auth))
+      return 1;
+
+  clear_non_auth_data(&current_auth);
   return 0;
 }
 
 int save_auth(const char* fn) {
-  return save_mfd(fn, &current_auth);
+  return save_txt(fn, &current_tag);
 }
 
 
-int import_auth() {
-  memcpy(&current_auth, &current_tag, sizeof(mf_tag_t));
-  strip_non_auth_data(&current_auth);
+int import_auth(mf_key_type_t key_type, size_t s1, size_t s2) {
+  for( size_t sector = s1; sector <= s2; sector++ ) {
+    size_t block = sector_to_trailer(sector);
+
+    if( key_type == MF_KEY_A || key_type == MF_KEY_AB ) {
+      const uint8_t* key = key_from_tag(&current_tag, MF_KEY_A, block);
+      key_to_tag(&current_auth, key, MF_KEY_A, block);
+    }
+
+    if( key_type == MF_KEY_B || key_type == MF_KEY_AB ) {
+      const uint8_t* key = key_from_tag(&current_tag, MF_KEY_B, block);
+      key_to_tag(&current_auth, key, MF_KEY_B, block);
+    }
+  }
   return 0;
 }
 
-void print_tag(mf_size_t size) {
-  if (size == MF_1K)
-    print_tag_block_range(0, MF_1K / sizeof(mf_block_t) - 1);
-  else if (size == MF_4K)
-    print_tag_block_range(0, MF_4K / sizeof(mf_block_t) - 1);
-  else {
-    printf("Unsupported tag size.\n");
-  }
-  return;
-}
+int export_auth(mf_key_type_t key_type, size_t s1, size_t s2) {
+  for( size_t sector = s1; sector <= s2; sector++ ) {
+    size_t block = sector_to_trailer(sector);
 
-void print_tag_head() {
-  print_tag_block_range(0, 3);
-  return;
+    if( key_type == MF_KEY_A || key_type == MF_KEY_AB ) {
+      const uint8_t* key = key_from_tag(&current_auth, MF_KEY_A, block);
+      key_to_tag(&current_tag, key, MF_KEY_A, block);
+    }
+
+    if( key_type == MF_KEY_B || key_type == MF_KEY_AB ) {
+      const uint8_t* key = key_from_tag(&current_auth, MF_KEY_B, block);
+      key_to_tag(&current_tag, key, MF_KEY_B, block);
+    }
+  }
+  return 0;
 }
 
 void print_tag_byte_bits(size_t byte, size_t first_bit, size_t last_bit) {
-
-  // The byte to show parts of
   uint8_t data = current_tag.amb[byte / 16].mbd.abtData[byte % 16];
 
   printf("[");
@@ -139,10 +204,7 @@ void print_tag_byte_bits(size_t byte, size_t first_bit, size_t last_bit) {
 }
 
 void print_tag_bytes(size_t first_byte, size_t last_byte) {
-
-  // Write the data one block at a time
   while (first_byte <= last_byte) {
-
     size_t byte_len = last_byte - first_byte;
 
     // Fill up start with spaces
@@ -155,25 +217,20 @@ void print_tag_bytes(size_t first_byte, size_t last_byte) {
     size_t block_last = block_offset + byte_len;
     if (block_last > 15)
       block_last = 15;
-    print_hex_array_sep(block_data  + block_offset,
-                        block_last - block_offset + 1, " ");
+    print_hex_array_sep(block_data  + block_offset, block_last - block_offset + 1, " ");
 
     // Fill up end with spaces
     for (size_t i = block_last; i < 15; ++i)
       printf("-- ");
 
-    // Finish of with a nl
     printf("\n");
 
     first_byte += block_last - block_offset + 1;
   }
 }
 
-void print_tag_data_range(size_t byte_offset, size_t bit_offset,
-                          size_t byte_len, size_t bit_len) {
-
-  printf("Offset: [%zu, %zu] Length: [%zu, %zu]\n",
-         byte_offset, bit_offset, byte_len, bit_len);
+void print_tag_data_range(size_t byte_offset, size_t bit_offset, size_t byte_len, size_t bit_len) {
+  printf("Offset: [%zu, %zu] Length: [%zu, %zu]\n", byte_offset, bit_offset, byte_len, bit_len);
 
   // Print partial first byte
   if (bit_offset) {
@@ -215,68 +272,41 @@ void print_tag_block_range(size_t first, size_t last) {
   if( last > sizeof(mf_tag_t)/sizeof(mf_block_t) )
     last = sizeof(mf_tag_t)/sizeof(mf_block_t);
 
-  // Print header
   printf("xS  xB  00                   07 08                   0f        ASCII       \n");
   printf("---------------------------------------------------------------------------\n");
 
-  // Iterate over all blocks
-  for (size_t block = first; block <= last; ++block) {
+  for (size_t block = first; block <= last; block++) {
+    printf("%02zx  %02zx  ", block_to_sector(block), block);
 
-    // Sector number
-    printf("%02zx  ",
-           block < 0x10*4 ? block / 4 : 0x10 + (block - 0x10*4) / 0x10);
+    print_hex_array_sep(current_tag.amb[block].mbd.abtData, sizeof(mf_block_t), " ");
 
-    // Block number
-    printf("%02zx  ", block);
-
-    // then print the block data
-    print_hex_array_sep(current_tag.amb[block].mbd.abtData,
-                        sizeof(mf_block_t), " ");
-
-    // finally, an ascii rendering
     printf(" [");
-    print_ascii_rendering(current_tag.amb[block].mbd.abtData,
-                         sizeof(mf_block_t), '.');
-    printf("]");
+    print_ascii_rendering(current_tag.amb[block].mbd.abtData, sizeof(mf_block_t), '.');
+    printf("]\n");
 
-    // EOL
-    printf("\n");
-
-    // Indicate sector bondaries with extra nl
-    if (block < last && block < 16*4 && (block + 1) % 4 == 0)
-      printf("\n");
-    else if (block < last && block > 16*4 && (block + 1) % 16 == 0)
+    if (block < last && is_trailer_block(block))
       printf("\n");
   }
 }
 
-void print_keys(const mf_tag_t* tag, mf_size_t size) {
+void print_keys(const mf_tag_t* tag, size_t s1, size_t s2) {
   printf("xS  xB  KeyA          KeyB\n");
   printf("----------------------------------\n");
-  for (int block = 3; block < 0x10 * 4; block += 4) {
-    printf("%02x  %02x  ", block / 4, block);
+
+  for (size_t sector = s1; sector <= s2; sector++) {
+    size_t block = sector_to_trailer(sector);
+
+    printf("%02zx  %02zx  ", sector, block);
     print_hex_array(tag->amb[block].mbt.abtKeyA, 6);
     printf("  ");
     print_hex_array(tag->amb[block].mbt.abtKeyB, 6);
     printf("\n");
-  }
 
-  if (size == MF_1K)
-    return;
-
-  printf("\n");
-
-  for (int block = 0xf; block < 0x0c * 0x10; block += 0x10) {
-    printf("%02x  %02x  ", 0x10 + block/0x10, 0x10*4 + block);
-    print_hex_array(tag->amb[0x10*4 + block].mbt.abtKeyA, 6);
-    printf("  ");
-    print_hex_array(tag->amb[0x10*4 + block].mbt.abtKeyB, 6);
-    printf("\n");
+    if (sector == 0x0f && s2 > 0x0f) printf("\n");
   }
 }
 
-void print_ac(const mf_tag_t* tag) {
-
+void print_ac(const mf_tag_t* tag, size_t b1, size_t b2) {
   static const char* ac_data_str[8] = {
     /* 0 0 0 */ "   A|B A|B A|B A|B   .   .   .   .   .   .",
     /* 0 0 1 */ "   A|B  x   x  A|B   .   .   .   .   .   .",
@@ -303,46 +333,37 @@ void print_ac(const mf_tag_t* tag) {
   printf("xS  xB  Raw       C1 C2 C3    R   W   I   D   AR  AW  ACR ACW BR  BW\n");
   printf("--------------------------------------------------------------------\n");
 
-  // Iterate over all blocks (in 1k sectors)
-  for (size_t block = 0; block < 0x10 * 4; ++block) {
+  // Iterate over all requested blocks
+  for (size_t block = b1; block <= b2; block++) {
+    size_t trailer = block_to_trailer(block);
+    const uint8_t* ac = tag->amb[trailer].mbt.abtAccessBits;
 
-    // Sector number
-    printf("%02zx  ",
-           block < 0x10*4 ? block / 4 : 0x10 + (block - 0x10*4) / 0x10);
-
-    // Block number
-    printf("%02zx  ", block);
-
-    const uint8_t* ac = tag->amb[block_to_trailer(block)].mbt.abtAccessBits;
-
-    // Print raw bytes
+    printf("%02zx  %02zx  ", block_to_sector(block), block);
     print_hex_array(ac, 4);
 
-    // Print the C1, C2, C3 bits
-    int c1 = (ac[1] & 1<<(4 + (block % 4))) > 0;
-    int c2 = (ac[2] & 1<<(0 + (block % 4))) > 0;
-    int c3 = (ac[2] & 1<<(4 + (block % 4))) > 0;
+    // Extract and print the C1, C2, C3 bits
+    uint32_t bits = (uint32_t)ac[0] | (uint32_t)ac[1]<<8 | (uint32_t)ac[2]<<16 | (uint32_t)ac[3]<<24;
+    int offset = 12 + ((block < 0x80) ? ((int)block%4) : (((int)block%16)/5));
+    int c1 = (bits>>(offset)) & 1;
+    int c2 = (bits>>(offset+4)) & 1;
+    int c3 = (bits>>(offset+8)) & 1;
     printf("   %d  %d  %d", c1, c2, c3);
 
-    // Print enterpretation
+    // Print interpretation
     int c123 = (c1<<2) | (c2<<1) | c3;
-    if (block % 4 < 3) {
+    if (block < trailer) {
       // Data block
-      printf("%s", ac_data_str[c123]);
+      printf("%s\n", ac_data_str[c123]);
     }
     else {
       // Trailer block
-      printf("%s", ac_trailer_str[c123]);
+      printf("%s\n", ac_trailer_str[c123]);
     }
 
-    printf("\n");
-
-    // Indicate sector bondaries with extra nl
-    if ((block + 1) % 4 == 0)
+    if (block == trailer && b2 > block)
       printf("\n");
   }
 }
-
 
 const char* sprint_key(const uint8_t* key) {
   static char str_buff[13];
@@ -363,24 +384,20 @@ const char* sprint_key(const uint8_t* key) {
 
 // Return a string describing the tag type 1k|4k
 const char* sprint_size(mf_size_t size) {
-  static const char* str_1k = "1k";
-  static const char* str_4k = "4k";
-
   if (size == MF_1K)
-    return str_1k;
+    return "1K";
 
   if (size == MF_4K)
-    return str_4k;
+    return "4K";
 
   return NULL;
 }
-
 
 uint8_t* read_key(uint8_t* key, const char* str) {
   if (!key || !str)
     return NULL;
 
-  static char byte_tok[] = {0, 0, 0};
+  char byte_tok[] = {0, 0, 0};
   char* byte_tok_end;
   for (int i = 0; i < 6; ++i) {
     byte_tok[0] = str[i*2];
@@ -394,29 +411,34 @@ uint8_t* read_key(uint8_t* key, const char* str) {
   return key;
 }
 
+void clear_blocks(mf_tag_t* tag, size_t b1, size_t b2) {
+  for (size_t block = b1; block <= b2; block++) {
+    if (block == 0 || is_trailer_block(block))
+      continue;
+    memset((void*)tag->amb[block].mbd.abtData, 0x00, 0x10);
+  }
+}
+
 void clear_tag(mf_tag_t* tag) {
   memset((void*)tag, 0x00, MF_4K);
 }
 
-void strip_non_auth_data(mf_tag_t* tag) {
-  static const size_t bs = sizeof(mf_block_t);
+void clear_non_auth_data(mf_tag_t* tag) {
+  // Clear first 32 4-block sector data
+  for (size_t i = 0; i < 32; ++i)
+    memset(((void*)tag) + i*64, 0x00, 48);
 
-  // Clear 1k sector data 16 á 4 - only keep sector trailer
-  for (size_t i = 0; i < 0x10; ++i)
-    memset(((void*)tag) + i * 4 * bs, 0x00, 3 * bs);
-
-  // Clear 2-4k sector data 12 á 16 - only keep sector trailer
-  for (size_t i = 0; i < 0x0c; ++i)
-    memset(((void*)tag) + 0x10 * 4 * bs + i * 0x10 * bs, 0x00, 0x0f * bs);
+  // Clear last 8 16-block sector data
+  for (size_t i = 0; i < 8; ++i)
+    memset(((void*)tag) + 2048 + i*256, 0x00, 240);
 }
-
 
 size_t block_count(mf_size_t size) {
   return size / 0x10;
 }
 
 size_t sector_count(mf_size_t size) {
-  return size == MF_1K ? 0x10 : 0x1c;
+  return size == MF_1K ? 0x10 : 0x28;
 }
 
 int is_trailer_block(size_t block) {
@@ -424,60 +446,56 @@ int is_trailer_block(size_t block) {
 }
 
 int is_header_block(size_t block) {
-  return (block) % (block < 0x40 ? 4 : 0x10) == 0;
+  return (block) % (block < 0x80 ? 4 : 0x10) == 0;
 }
 
 size_t block_to_sector(size_t block) {
-  if (block < 0x10*4)
+  if (block < 0x80)
     return block / 4;
 
-  return 0x10 + (block - 0x10*4) / 0x10;
+  return 0x20 + (block - 0x80) / 0x10;
 }
 
 size_t block_to_header(size_t block) {
-  if (block < 0x10*4)
-    return block + (block % 4);
+  if (block < 0x80)
+    return block - (block % 4);
 
-  return block + (block % 0x10);
+  return block - (block % 0x10);
 }
 
 // Return the trailer block for the specified block
 size_t block_to_trailer(size_t block)
 {
-  if (block < 0x10*4)
-    return block + (3 - (block % 4));
+  if (block < 0x80)
+    return block - (block % 4) + 3;
 
-  return block + (0xf - (block % 0x10));
+  return block - (block % 0x10) + 0x0f;
 }
 
 // Return the header block for the specified sector
 size_t sector_to_header(size_t sector) {
-  if (sector < 0x10)
+  if (sector < 0x20)
     return sector * 4;
   else
-    return 0x10 * 4 + (sector - 0x10) * 0x10;
+    return 0x80 + (sector - 0x20) * 0x10;
 }
 
 // Return the trailer block for the specified sector
 size_t sector_to_trailer(size_t sector) {
-  if (sector < 0x10)
+  if (sector < 0x20)
     return sector * 4 + 3;
   else
-    return 0x10 * 4 + (sector - 0x10) * 0x10 + 0xf;
+    return 0x80 + (sector - 0x20) * 0x10 + 0x0f;
 }
 
 // Return the sector size (in blocks) that contains the block
 size_t sector_size(size_t block) {
-  return block < 0x10*4 ? 4 : 16;
+  return block < 0x80 ? 4 : 16;
 }
 
 // Extract the key for the block parameters sector of the tag and return it
-uint8_t* key_from_tag(const mf_tag_t* tag,
-                     mf_key_type_t key_type,
-                     size_t block) {
-
+uint8_t* key_from_tag(const mf_tag_t* tag, mf_key_type_t key_type, size_t block) {
   static uint8_t key[6];
-
   size_t trailer_block = block_to_trailer(block);
 
   if (key_type == MF_KEY_A)
@@ -490,37 +508,11 @@ uint8_t* key_from_tag(const mf_tag_t* tag,
 
 // Write key to the sector of a tag, where the sector is specified by
 // the block.
-void key_to_tag(mf_tag_t* tag, const uint8_t* key,
-                mf_key_type_t key_type, size_t block) {
-
+void key_to_tag(mf_tag_t* tag, const uint8_t* key, mf_key_type_t key_type, size_t block) {
   size_t trailer_block = block_to_trailer(block);
 
   if (key_type == MF_KEY_A)
     memcpy(tag->amb[trailer_block].mbt.abtKeyA, key, 6);
   else
     memcpy(tag->amb[trailer_block].mbt.abtKeyB, key, 6);
-}
-
-/**
- * Return block index of the first block in every sector in turn on
- * repeated calls. Initialize the iterator by calling with state
- * 0. Subsequent calls should use the tag size as state. The iterator
- * returns -1 as an end marker.
- */
-int sector_header_iterator(mf_size_t state) {
-  static int block;
-
-  if (state == 0)
-    return block = 0;
-
-  if (block + 4 < 0x10*4)
-    return block += 4;
-
-  if (state == MF_1K) // End marker for 1k state
-    return -1;
-
-  if (block + 0x10 < 0x100)
-    return block += 0x10;
-
-  return -1; // End marker for 4k state
 }

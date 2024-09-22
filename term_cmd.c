@@ -60,22 +60,22 @@ command_t commands[] = {
 
   { "gen3 setuid!", com_gen3_writeuid, 0, 1, "On GEN3 cards, set UID without modifying block 0" },
   { "gen3 write0!", com_gen3_write0,   0, 1, "On GEN3 cards, write block 0 and set UID" },
-  { "gen3 lock!",   com_gen3_lock,     0, 1, "On GEN3 cards, lock the card permanently" },
+  { "gen3 lock!",   com_gen3_lock,     0, 1, "On GEN3 cards, lock card UID/block0 permanently" },
 
   { "ident",        com_ident,         0, 1, "Identify card and print public information" },
   { "check",        com_check_tag,     0, 1, "Check the current tag data" },
 
   { "print keys",   com_print_keys,    0, 1, "#sector: Print tag sector keys" },
-  { "print perm",   com_print_perm,    0, 1, "#sector: Print tag sector permissions/access conditions" },
+  { "print perm",   com_print_perm,    0, 1, "#sector: Print tag sector permissions" },
   { "print block",  com_print_blocks,  0, 1, "#block: Print tag block data" },
   { "print",        com_print_sectors, 0, 1, "#sector: Print tag sector data" },
 
   { "put uid",      com_put_uid,       0, 1, "xx xx xx xx [xx xx xx]: Set tag UID" },
-  { "put key",      com_put_key,       0, 1, "A|B|AB #sector xxxxxxxxxxxx: Set tag sector key" },
-  { "put perm",     com_put_perm,      0, 1, "A|B|AB #sector ???: Set tag sector permissions/access conditions" },
+  { "put key",      com_put_key,       0, 1, "#sector A|B|AB xxxxxxxxxxxx: Set tag sector key" },
+  { "put perm",     com_put_perm,      0, 1, "#block A|B|AB ???: Set tag block permissions" },
   { "put",          com_put,           0, 1, "#block #offset xx xx xx|\"ASCII\": Set tag block data" },
 
-  { "set auth",     com_set_auth,      0, 1, "A|B|*: Set keys to use for authentication (* = gen2 unlocked)" },
+  { "set auth",     com_set_auth,      0, 1, "A|B|AB|*: Set keys to use for authentication (* = gen2 unlocked)" },
   { "set size",     com_set_size,      0, 1, "1K|4K: Set the default tag size" },
   { "set device",   com_set_device,    0, 1, "Set NFC device to use" },
   { "set",          com_set,           0, 1, "Print current settings" },
@@ -83,10 +83,10 @@ command_t commands[] = {
   { "keys load",    com_keys_load,     1, 1, "Load keys from file" },
   { "keys save",    com_keys_save,     1, 1, "Save keys to file" },
   { "keys clear",   com_keys_clear,    0, 1, "Clear keys" },
-  { "keys put",     com_keys_put,      0, 1, "A|B|AB #sector xxxxxxxxxxxx: Set key" },
-  { "keys import",  com_keys_import,   0, 1, "A|B|AB #sector: Import sector keys from tag" },
-  { "keys export",  com_keys_export,   0, 1, "A|B|AB #sector: Export sector keys to tag" },
-  { "keys test",    com_keys_test,     0, 1, "A|B|AB: Try to authenticate with the keys" },
+  { "keys put",     com_keys_put,      0, 1, "#sector A|B|AB xxxxxxxxxxxx: Set authorization key" },
+  { "keys import",  com_keys_import,   0, 1, "#sector A|B|AB: Import sector keys from tag" },
+  { "keys export",  com_keys_export,   0, 1, "#sector A|B|AB: Export sector keys to tag" },
+  { "keys test",    com_keys_test,     0, 1, "#sector A|B|AB: Try to authenticate with the keys" },
   { "keys",         com_keys_print,    0, 1, "#sector: Print sector keys" },
 
   { "dict load",    com_dict_load,     1, 1, "Load a dictionary key file" },
@@ -111,18 +111,16 @@ command_t commands[] = {
 int parse_range(const char* str, size_t* a, size_t* b, int base);
 
 // Parse a range of sectors 
-int parse_sectors(const char* str, size_t* a, size_t* b);
+int parse_sectors(const char* str, size_t* a, size_t* b, const char* def);
 
 // Parse a range of blocks 
-int parse_blocks(const char* str, size_t* a, size_t* b);
+int parse_blocks(const char* str, size_t* a, size_t* b, const char* def);
 
 // Parse a Mifare key type argument (A|B|AB|*)
-mf_key_type_t parse_key_type(const char* str);
+mf_key_type_t parse_key_type(const char* str, const char* def);
 
-// Parse a Mifare key type argument (A|B|AB|*). Return the default
-// argument value if the string is NULL.
-mf_key_type_t parse_key_type_default(const char* str,
-                                     mf_key_type_t default_type);
+// Parse a key size (1K|4K)
+mf_size_t parse_size(const char* str, const char* def);
 
 // Compute the MAC using the current_mac_key. If update is nonzero,
 // the mac of the current tag is updated. If not, the MAC is simply
@@ -151,7 +149,6 @@ command_t* find_command(const char *name) {
  * command name.
  */
 void print_help_(size_t cmd) {
-
   // Find longest command (and cache the result)
   static size_t cmd_len_max = 0;
   if (cmd_len_max == 0) {
@@ -169,7 +166,6 @@ void print_help_(size_t cmd) {
 }
 
 int com_help(char* arg) {
-
   // Help request for specific command?
   if (arg && *arg != '\0') {
     for (size_t i = 0; commands[i].name; ++i) {
@@ -196,16 +192,30 @@ int com_quit(char *arg) {
 }
 
 int com_load_tag(char *arg) {
+  if (*arg == '\0') {
+    printf("Missing file name\n");
+    return -1;
+  }
+
   int res = load_tag(arg);
   if (res == 0)
     printf("Successfully loaded tag from: %s\n", arg);
+  else
+    printf("Failed to load tag from: %s\n", arg);
   return 0;
 }
 
 int com_save_tag(char* arg) {
+  if (*arg == '\0') {
+    printf("Missing file name\n");
+    return -1;
+  }
+
   int res = save_tag(arg);
   if (res == 0)
     printf("Successfully wrote tag to: %s\n", arg);
+  else
+    printf("Failed to write tag to: %s\n", arg);
   return 0;
 }
 
@@ -215,80 +225,142 @@ int com_reset_tag(char* arg) {
 }
 
 int com_clear_block(char* arg) {
+  char* block = strtok(arg, " ");
+
+  if (block && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  size_t b1, b2;
+  if( parse_blocks( block, &b1, &b2, settings.size ) != 0 ) {
+    printf("Invalid block range: %s\n", block);
+    return -1;
+  }
+  if (b2 > 0xff || b1 > b2) {
+    printf("Invalid block range: %lu - %lu\n", b1, b2);
+    return -1;
+  }
+
+  clear_blocks(&current_tag, b1, b2);
   return 0;
 }
 
 int com_clear_sector(char* arg) {
+  char* sector = strtok(arg, " ");
+
+  if (sector && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  size_t s1, s2;
+  if( parse_blocks( sector, &s1, &s2, settings.size ) != 0 ) {
+    printf("Invalid sector range: %s\n", sector);
+    return -1;
+  }
+  if (s2 > 39 || s1 > s2) {
+    printf("Invalid block range: %lu - %lu\n", s1, s2);
+    return -1;
+  }
+  s1 = sector_to_header(s1);
+  s2 = sector_to_trailer(s2);
+
+  clear_blocks(&current_tag, s1, s2);
   return 0;
 }
 
 int com_read_block(char* arg) {
+  char* block = strtok(arg, " ");
+
+  if (block && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  size_t b1, b2;
+  if( parse_blocks( block, &b1, &b2, settings.size ) != 0 ) {
+    printf("Invalid block range: %s\n", block);
+    return -1;
+  }
+  if (b2 > 0xff || b1 > b2) {
+    printf("Invalid block range: %lu - %lu\n", b1, b2);
+    return -1;
+  }
+
+  // Issue the read request
+  mf_read_blocks(&current_tag, parse_key_type(settings.auth, NULL), b1, b2);
   return 0;
 }
 
 int com_read_sector(char* arg) {
-  // Add option to choose key
-  char* ab = strtok(arg, " ");
+  char* sector = strtok(arg, " ");
 
-  if (ab && strtok(NULL, " ") != (char*)NULL) {
+  if (sector && strtok(NULL, " ") != (char*)NULL) {
     printf("Too many arguments\n");
     return -1;
   }
-  if (!ab)
-    printf("No key argument (A|B) given. Defaulting to A\n");
 
-  // Parse key selection
-  mf_key_type_t key_type = parse_key_type_default(ab, MF_KEY_A);
-  if (key_type == MF_INVALID_KEY_TYPE) {
-    printf("Invalid argument (A|B): %s\n", ab);
+  size_t s1, s2;
+  if( parse_sectors( sector, &s1, &s2, settings.size ) != 0 ) {
+    printf("Invalid sector range: %s\n", sector);
     return -1;
   }
+  if (s2 > 39 || s1 > s2) {
+    printf("Invalid sector range: %lu - %lu\n", s1, s2);
+    return -1;
+  }
+  s1 = sector_to_header(s1);
+  s2 = sector_to_trailer(s2);
 
-  // Issue the read request
-  mf_read_tag(&current_tag, key_type);
+  mf_read_blocks(&current_tag, parse_key_type(settings.auth, NULL), s1, s2);
   return 0;
 }
 
-
 int com_write_block(char* arg) {
+  char* block = strtok(arg, " ");
+
+  if (block && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  size_t b1, b2;
+  if( parse_blocks( block, &b1, &b2, settings.size ) != 0 ) {
+    printf("Invalid block range: %s\n", block);
+    return -1;
+  }
+  if (b2 > 0xff || b1 > b2) {
+    printf("Invalid block range: %lu - %lu\n", b1, b2);
+    return -1;
+  }
+
+  mf_write_blocks(&current_tag, parse_key_type(settings.auth, NULL), b1, b2);
   return 0;
 }
 
 int com_write_sector(char* arg) {
-  // Add option to choose key
-  char* ab = strtok(arg, " ");
+  char* sector = strtok(arg, " ");
 
-  if (!ab) {
-    printf("Too few arguments: (A|B)\n");
-    return -1;
-  }
-
-  if (strtok(NULL, " ") != (char*)NULL) {
+  if (sector && strtok(NULL, " ") != (char*)NULL) {
     printf("Too many arguments\n");
     return -1;
   }
 
-  // Parse key selection
-  mf_key_type_t key_type = parse_key_type(ab);
-  if (key_type == MF_INVALID_KEY_TYPE) {
-    printf("Invalid argument (A|B): %s\n", ab);
+  size_t s1, s2;
+  if( parse_sectors( sector, &s1, &s2, settings.size ) != 0 ) {
+    printf("Invalid sector range: %s\n", sector);
     return -1;
   }
+  if (s2 > 39 || s1 > s2) {
+    printf("Invalid sector range: %lu - %lu\n", s1, s2);
+    return -1;
+  }
+  s1 = sector_to_header(s1);
+  s2 = sector_to_trailer(s2);
 
   // Issue the read request
-  mf_write_tag(&current_tag, key_type);
-  return 0;
-}
-
-int com_write_tag_unlocked(char* arg) {
-  char* ab = strtok(arg, " ");
-  if (ab) {
-    printf("This command doesn't take any arguments\n");
-    return -1;
-  }
-
-  // Issue the write request
-  mf_write_tag(&current_tag, MF_KEY_UNLOCKED);
+  mf_write_blocks(&current_tag, parse_key_type(settings.auth, NULL), s1, s2);
   return 0;
 }
 
@@ -324,20 +396,9 @@ int com_print_blocks(char* arg) {
     return -1;
   }
 
-  size_t size1 = 0, size2 = MF_1K/sizeof(mf_block_t)-1;
-  if (parse_range(a, &size1, &size2, 0) != 0) {
-    mf_size_t size = parse_size_default(a, MF_1K);
-    size1 = 0;
-    size2 = size/sizeof(mf_block_t) - 1;
-
-    if (size == MF_INVALID_SIZE) {
-      printf("Unknown argument: %s\n", a);
-      return -1;
-    }
-  }
-
-  if (size2 > MF_4K/sizeof(mf_block_t)-1 || size1 > size2) {
-    printf("Invalid argument: %s (parsed as: %lu - %lu)\n", a, size1, size2 );
+  size_t size1, size2;
+  if( parse_blocks( a, &size1, &size2, settings.size ) != 0 ) {
+    printf("Unknown argument: %s\n", a);
     return -1;
   }
 
@@ -354,28 +415,14 @@ int com_print_sectors(char* arg) {
     return -1;
   }
 
-  size_t size1 = 0, size2 = block_to_sector(MF_1K/sizeof(mf_block_t)-1);
-  if (parse_range(a, &size1, &size2, 0) != 0) {
-    mf_size_t size = parse_size_default(a, MF_1K);
-    if (size == MF_INVALID_SIZE) {
-      printf("Unknown argument: %s\n", a);
-      return -1;
-    }
-    size1 = 0;
-    size2 = block_to_sector(size/sizeof(mf_block_t) - 1);
-  }
-
-  if (size2 > 0x1b || size1 > size2) {
-    printf("Invalid argument: %s (parsed as: %lu - %lu)\n", a, size1, size2 );
+  size_t size1, size2;
+  if( parse_sectors( a, &size1, &size2, settings.size ) != 0 ) {
+    printf("Unknown argument: %s\n", a);
     return -1;
   }
 
   print_tag_block_range(sector_to_header(size1), sector_to_trailer(size2));
 
-  return 0;
-}
-
-int com_print_perm(char* arg) {
   return 0;
 }
 
@@ -389,8 +436,8 @@ int com_put(char* arg) {
     return -1;
   }
 
-  size_t block1 = 0, block2 = MF_1K/sizeof(mf_block_t)-1;
-  if (parse_range(block_str, &block1, &block2, 0) != 0) {
+  size_t block1, block2;
+  if( parse_blocks( block_str, &block1, &block2, settings.size ) != 0 ) {
     printf("Invalid block range: %s\n", block_str);
     return -1;
   }
@@ -483,6 +530,62 @@ int com_put(char* arg) {
 }
 
 int com_put_key(char* arg) {
+  char* sector_str = strtok(arg, " ");
+  char* ab = strtok(NULL, " ");
+  char* key_str = strtok(NULL, " ");
+
+  if (strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  if (!ab || !sector_str || !key_str) {
+    printf("Too few arguments: #sector (A|B|AB) key\n");
+    return -1;
+  }
+
+  // parse sector
+  size_t sector1, sector2;
+  if( parse_sectors(sector_str, &sector1, &sector2, settings.size) != 0 ) {
+    printf("Unknown argument: %s\n", sector_str);
+    return -1;
+  }
+  if (sector2 > 39 || sector1 > sector2) {
+    printf("Invalid sectors [0,39]: %lu - %lu\n", sector1, sector2);
+    return -1;
+  }
+
+  // parse key type
+  mf_key_type_t key_type = parse_key_type(ab, NULL);
+  if (key_type != MF_KEY_A && key_type != MF_KEY_B && key_type != MF_KEY_AB) {
+    printf("Invalid argument (A|B|AB): %s\n", ab);
+    return -1;
+  }
+
+  // Parse the key
+  uint8_t key[6];  
+  if (strncmp(key_str, "0x", 2) == 0)
+    key_str += 2;
+  if (strlen(key_str) != 12) {
+    printf("Invalid key (6 byte hex): %s\n", key_str);
+    return -1;
+  }
+  if (read_key(key, key_str) == NULL) {
+    printf("Invalid key character (non hex)\n");
+    return -1;
+  }
+
+  for( size_t sector = sector1; sector <= sector2; sector++ ) {
+    size_t block = sector_to_trailer(sector);
+
+    // copy to appropriate keys
+    if (key_type == MF_KEY_A || key_type == MF_KEY_AB)
+      memcpy( current_tag.amb[block].mbt.abtKeyA, key, sizeof(key) );
+    
+    if (key_type == MF_KEY_B || key_type == MF_KEY_AB)
+      memcpy( current_tag.amb[block].mbt.abtKeyB, key, sizeof(key) );
+  }
+
   return 0;
 }
 
@@ -571,6 +674,83 @@ int com_gen3_lock(char* arg) {
 }
 
 int com_print_keys(char* arg) {
+  char* sector = strtok(arg, " ");
+
+  if (sector && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  size_t s1, s2;
+  if( parse_sectors( sector, &s1, &s2, settings.size ) != 0 ) {
+    printf("Invalid sector range: %s\n", sector);
+    return -1;
+  }
+  if (s2 > 39 || s1 > s2) {
+    printf("Invalid sector range: %lu - %lu\n", s1, s2);
+    return -1;
+  }
+
+  print_keys(&current_tag, s1, s2);
+
+  return 0;
+}
+
+int com_print_perm(char* arg) {
+  char* sector = strtok(arg, " ");
+
+  if (sector && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  size_t s1, s2;
+  if( parse_sectors( sector, &s1, &s2, settings.size ) != 0 ) {
+    printf("Invalid sector range: %s\n", sector);
+    return -1;
+  }
+  if (s2 > 39 || s1 > s2) {
+    printf("Invalid sector range: %lu - %lu\n", s1, s2);
+    return -1;
+  }
+  s1 = sector_to_header(s1);
+  s2 = sector_to_trailer(s2);
+
+  print_ac(&current_tag, s1, s2 );
+
+  return 0;
+}
+
+int com_set(char* arg) {
+  printf("Device: %s\n", settings.device);
+  printf("Auth:   %s\n", settings.auth);
+  printf("Size:   %s\n", settings.size);
+  return 0;
+}
+
+int com_set_auth(char* arg) {
+  char* a = strtok(arg, " ");
+
+  if (a && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+  
+  mf_key_type_t key_type = parse_key_type(a, NULL);
+  if( key_type == MF_KEY_A )
+    settings.auth = "A";
+  else if( key_type == MF_KEY_B )
+    settings.auth = "B";
+  else if( key_type == MF_KEY_AB )
+    settings.auth = "AB";
+  else if( key_type == MF_KEY_UNLOCKED )
+    settings.auth = "*";
+  else
+    printf("Invalid authentication key type %s\n", a);
+  return 0;
+}
+
+int com_set_device(char* arg) {
   char* a = strtok(arg, " ");
 
   if (a && strtok(NULL, " ") != (char*)NULL) {
@@ -578,56 +758,60 @@ int com_print_keys(char* arg) {
     return -1;
   }
 
-  mf_size_t size = parse_size_default(a, MF_1K);
-
-  if (size == MF_INVALID_SIZE) {
-    printf("Unknown argument: %s\n", a);
-    return -1;
+  if( !a || a[0] == '\0' ) {
+    settings.device[0] = '\0';
+  } else {
+    strncpy(settings.device, a, sizeof(settings.device));
+    settings.device[sizeof(settings.device)-1] = '\0';
   }
 
-  print_keys(&current_tag, size);
-
-  return 0;
-}
-
-int com_print_ac(char* arg) {
-  if (strtok(arg, " ") != (char*)NULL) {
-    printf("Too many arguments\n");
-    return -1;
-  }
-
-  print_ac(&current_tag);
-
-  return 0;
-}
-
-int com_set(char* arg) {
-  return 0;
-}
-
-int com_set_auth(char* arg) {
-  return 0;
-}
-
-int com_set_device(char* arg) {
   return 0;
 }
 
 int com_set_size(char* arg) {
+  char* a = strtok(arg, " ");
+
+  if (a && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  size_t s = parse_size(a, NULL);
+  if( s == MF_1K )
+    settings.size = "1K";
+  else if( s == MF_4K )
+    settings.size = "4K";
+  else
+    printf("Invalid size %s\n", a);
+
   return 0;
 }
 
 int com_keys_load(char* arg) {
+  if (*arg == '\0') {
+    printf("Missing file name\n");
+    return -1;
+  }
+
   int res = load_auth(arg);
   if (res == 0)
     printf("Successfully loaded keys from: %s\n", arg);
+  else
+    printf("Failed to load keys from: %s\n", arg);
   return 0;
 }
 
 int com_keys_save(char* arg) {
+  if (*arg == '\0') {
+    printf("Missing file name\n");
+    return -1;
+  }
+
   int res = save_auth(arg);
   if (res == 0)
     printf("Successfully wrote keys to: %s\n", arg);
+  else
+    printf("Failed to write keys to: %s\n", arg);
   return 0;
 }
 
@@ -637,10 +821,8 @@ int com_keys_clear(char* arg) {
 }
 
 int com_keys_put(char* arg) {
-  // Arg format: A|B|AB #sector key
-
-  char* ab = strtok(arg, " ");
-  char* sector_str = strtok(NULL, " ");
+  char* sector_str = strtok(arg, " ");
+  char* ab = strtok(NULL, " ");
   char* key_str = strtok(NULL, " ");
 
   if (strtok(NULL, " ") != (char*)NULL) {
@@ -649,51 +831,49 @@ int com_keys_put(char* arg) {
   }
 
   if (!ab || !sector_str || !key_str) {
-    printf("Too few arguments: (A|B) #sector key\n");
+    printf("Too few arguments: #sector (A|B|AB) key\n");
     return -1;
   }
 
-  // Read sector
-  size_t sector1 = 0, sector2 = MF_1K/sizeof(mf_block_t) - 1;
-  if (parse_range( sector_str, &sector1, &sector2, 0) != 0) {
-    printf("Invalid sectors: %s\n", sector_str);
+  // parse sector
+  size_t sector1, sector2;
+  if( parse_sectors(sector_str, &sector1, &sector2, settings.size) != 0 ) {
+    printf("Unknown argument: %s\n", sector_str);
     return -1;
   }
-  if (sector2 > 0x1b || sector1 > sector2) {
-    printf("Invalid sectors [0,1b]: %lu - %lu\n", sector1, sector2);
+  if (sector2 > 39 || sector1 > sector2) {
+    printf("Invalid sectors [0,39]: %lu - %lu\n", sector1, sector2);
     return -1;
   }
 
-  // Sanity check key length
+  // parse key type
+  mf_key_type_t key_type = parse_key_type(ab, NULL);
+  if (key_type != MF_KEY_A && key_type != MF_KEY_B && key_type != MF_KEY_AB) {
+    printf("Invalid argument (A|B|AB): %s\n", ab);
+    return -1;
+  }
+
+  // Parse the key
+  uint8_t key[6];  
   if (strncmp(key_str, "0x", 2) == 0)
     key_str += 2;
   if (strlen(key_str) != 12) {
     printf("Invalid key (6 byte hex): %s\n", key_str);
     return -1;
   }
-
-  // parse key type
-  mf_key_type_t key_type = parse_key_type(ab);
-  if (key_type != MF_KEY_A && key_type != MF_KEY_B) {
-    printf("Invalid argument (A|B): %s\n", ab);
-    return -1;
-  }
-
-  // Parse the key
-  uint8_t key[6];  
   if (read_key(key, key_str) == NULL) {
     printf("Invalid key character (non hex)\n");
     return -1;
   }
 
   for( size_t sector = sector1; sector <= sector2; sector++ ) {
-    // Compute the block that houses the key for the desired sector
     size_t block = sector_to_trailer(sector);
 
-    // copy to appropriate key
-    if (key_type == MF_KEY_A)
+    // copy to appropriate keys
+    if (key_type == MF_KEY_A || key_type == MF_KEY_AB)
       memcpy( current_auth.amb[block].mbt.abtKeyA, key, sizeof(key) );
-    else if (key_type == MF_KEY_B)
+    
+    if (key_type == MF_KEY_B || key_type == MF_KEY_AB)
       memcpy( current_auth.amb[block].mbt.abtKeyB, key, sizeof(key) );
   }
 
@@ -701,69 +881,127 @@ int com_keys_put(char* arg) {
 }
 
 int com_keys_import(char* arg) {
-  import_auth();
+  char* sector_str = strtok(arg, " ");
+  char* ab = strtok(NULL, " ");
+
+  if (strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  // parse sector
+  size_t s1, s2;
+  if( parse_sectors(sector_str, &s1, &s2, settings.size) != 0 ) {
+    printf("Unknown argument: %s\n", sector_str ? sector_str : "");
+    return -1;
+  }
+  if (s2 > 39 || s1 > s2) {
+    printf("Invalid sectors [0,39]: %lu - %lu\n", s1, s2);
+    return -1;
+  }
+
+  // parse key type
+  mf_key_type_t key_type = parse_key_type(ab, "AB");
+  if (key_type != MF_KEY_A && key_type != MF_KEY_B && key_type != MF_KEY_AB) {
+    printf("Invalid argument (A|B|AB): %s\n", ab ? ab : "");
+    return -1;
+  }
+
+  import_auth(key_type, s1, s2);
   return 0;
 }
 
 int com_keys_export(char* arg) {
+  char* sector_str = strtok(arg, " ");
+  char* ab = strtok(NULL, " ");
+
+  if (strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  // parse sector
+  size_t s1, s2;
+  if( parse_sectors(sector_str, &s1, &s2, settings.size) != 0 ) {
+    printf("Unknown argument: %s\n", sector_str ? sector_str : "");
+    return -1;
+  }
+  if (s2 > 39 || s1 > s2) {
+    printf("Invalid sectors [0,39]: %lu - %lu\n", s1, s2);
+    return -1;
+  }
+
+  // parse key type
+  mf_key_type_t key_type = parse_key_type(ab, "AB");
+  if (key_type != MF_KEY_A && key_type != MF_KEY_B && key_type != MF_KEY_AB) {
+    printf("Invalid argument (A|B|AB): %s\n", ab ? ab : "");
+    return -1;
+  }
+
+  export_auth(key_type, s1, s2);
   return 0;
 }
 
 int com_keys_test(char* arg) {
-  // Arg format: 1k|4k A|B
-
-  char* s = strtok(arg, " ");
+  char* sector_str = strtok(arg, " ");
   char* ab = strtok(NULL, " ");
 
-  if (s && ab && strtok(NULL, " ") != NULL) {
+  if (strtok(NULL, " ") != (char*)NULL) {
     printf("Too many arguments\n");
     return -1;
   }
 
-  if (!s || !ab) {
-    printf("Too few arguments: (1k|4k) (A|B)\n");
+  // parse sector
+  size_t s1, s2;
+  if( parse_sectors(sector_str, &s1, &s2, settings.size) != 0 ) {
+    printf("Unknown argument: %s\n", sector_str ? sector_str : "");
+    return -1;
+  }
+  if (s2 > 39 || s1 > s2) {
+    printf("Invalid sectors [0,39]: %lu - %lu\n", s1, s2);
     return -1;
   }
 
-  // Parse arguments
-  mf_size_t size = parse_size(s);
-  if (size == MF_INVALID_SIZE) {
-    printf("Unknown size argument (1k|4k): %s\n", s);
+  // parse key type
+  mf_key_type_t key_type = parse_key_type(ab, "AB");
+  if (key_type != MF_KEY_A && key_type != MF_KEY_B && key_type != MF_KEY_AB) {
+    printf("Invalid argument (A|B|AB): %s\n", ab ? ab : "");
     return -1;
   }
 
-  mf_key_type_t key_type = parse_key_type(ab);
-  if (key_type == MF_INVALID_KEY_TYPE) {
-    printf("Unknown key type argument (A|B): %s\n", ab);
-    return -1;
-  }
-
-  // Run the auth test
-  mf_test_auth(&current_auth, size, key_type);
+  mf_test_auth(&current_auth, s1, s2, key_type);
   return 0;
 }
 
 int com_keys_print(char* arg) {
-  char* a = strtok(arg, " ");
+  char* sector_str = strtok(arg, " ");
 
-  if (a && strtok(NULL, " ") != (char*)NULL) {
+  if (strtok(NULL, " ") != (char*)NULL) {
     printf("Too many arguments\n");
     return -1;
   }
 
-  mf_size_t size = parse_size_default(a, MF_1K);
-
-  if (size == MF_INVALID_SIZE) {
-    printf("Unknown argument: %s\n", a);
+  // parse sector
+  size_t s1, s2;
+  if( parse_sectors(sector_str, &s1, &s2, settings.size) != 0 ) {
+    printf("Unknown argument: %s\n", sector_str ? sector_str : "");
+    return -1;
+  }
+  if (s2 > 39 || s1 > s2) {
+    printf("Invalid sectors [0,39]: %lu - %lu\n", s1, s2);
     return -1;
   }
 
-  print_keys(&current_auth, size);
-
+  print_keys(&current_auth, s1, s2);
   return 0;
 }
 
 int com_dict_load(char* arg) {
+  if (*arg == '\0') {
+    printf("Missing file name\n");
+    return -1;
+  }
+
   FILE* dict_file = fopen(arg, "r");
 
   if (dict_file == NULL) {
@@ -783,8 +1021,6 @@ int com_dict_clear(char* arg) {
 }
 
 int com_dict_attack(char* arg) {
-
-  // Not much point if we don't have any keys
   if (!dictionary_get()) {
     printf("Dictionary is empty!\n");
     return -1;
@@ -795,8 +1031,6 @@ int com_dict_attack(char* arg) {
 }
 
 int com_dict_add(char* arg) {
-  // Arg format: key
-
   char* key_str = strtok(arg, " ");
 
   if (strtok(NULL, " ") != (char*)NULL) {
@@ -855,7 +1089,12 @@ int com_spec_print(char* arg) {
 }
 
 int com_spec_load(char* arg) {
-  // Start by clearing the current hierarcy
+  if (*arg == '\0') {
+    printf("Missing file name\n");
+    return -1;
+  }
+
+  // Start by clearing the current hierarchy
   clear_instance_tree();
   tt_clear();
 
@@ -976,7 +1215,7 @@ int com_mac_validate(char* arg) {
     return -1;
   }
 
-  mf_size_t size = parse_size_default(a, MF_1K);
+  mf_size_t size = parse_size(a, settings.size);
 
   if (size == MF_INVALID_SIZE) {
     printf("Unknown argument: %s\n", a);
@@ -1005,10 +1244,13 @@ int com_mac_validate(char* arg) {
   return 0;
 }
 
-mf_size_t parse_size(const char* str) {
 
-  if (str == NULL)
-    return MF_INVALID_SIZE;
+mf_size_t parse_size(const char* str, const char* def) {
+  if (str == NULL) {
+    str = def;
+    if (str == NULL)
+      return MF_INVALID_SIZE;
+  }
 
   if (strcasecmp(str, "1k") == 0)
     return MF_1K;
@@ -1019,16 +1261,12 @@ mf_size_t parse_size(const char* str) {
   return MF_INVALID_SIZE;
 }
 
-mf_size_t parse_size_default(const char* str, mf_size_t default_size) {
-  if (str == NULL)
-    return default_size;
-  return parse_size(str);
-}
-
-mf_key_type_t parse_key_type(const char* str) {
-
-  if (str == NULL)
-    return MF_INVALID_KEY_TYPE;
+mf_key_type_t parse_key_type(const char* str, const char* def) {
+  if (str == NULL) {
+    str = def;
+    if (str == NULL)
+      return MF_INVALID_KEY_TYPE;
+  }
 
   if (strcasecmp(str, "a") == 0)
     return MF_KEY_A;
@@ -1036,14 +1274,13 @@ mf_key_type_t parse_key_type(const char* str) {
   if (strcasecmp(str, "b") == 0)
     return MF_KEY_B;
 
-  return MF_INVALID_KEY_TYPE;
-}
+  if (strcasecmp(str, "ab") == 0 || strcasecmp(str, "x") == 0)
+    return MF_KEY_AB;
 
-mf_key_type_t parse_key_type_default(const char* str,
-                                     mf_key_type_t default_type) {
-  if (str == NULL)
-    return default_type;
-  return parse_key_type(str);
+  if (strcasecmp(str, "*") == 0)
+    return MF_KEY_UNLOCKED;
+
+  return MF_INVALID_KEY_TYPE;
 }
 
 // read (positive) number range
@@ -1067,6 +1304,40 @@ int parse_range(const char* str, size_t* a, size_t* b, int base) {
   // read second number
   *b = (unsigned int)strtol(s, (char**)&s, base);
   return (*s == '\0') ? 0 : -1;
+}
+
+// Parse a range of sectors 
+int parse_sectors(const char* str, size_t* a, size_t* b, const char* def) {
+  if (str == NULL) {
+    str = def;
+  }
+
+  const mf_size_t size = parse_size(str, settings.size);
+  if( size != MF_INVALID_SIZE ) {
+    *a = 0;
+    *b = sector_count(size)-1;
+    return 0;
+  }
+  *a = 0;
+  *b = sector_count(parse_size(settings.size, NULL))-1;
+  return parse_range(str, a, b, 0);
+}
+
+// Parse a range of blocks 
+int parse_blocks(const char* str, size_t* a, size_t* b, const char* def) {
+  if (str == NULL) {
+    str = def;
+  }
+
+  const mf_size_t size = parse_size(str, settings.size);
+  if( size != MF_INVALID_SIZE ) {
+    *a = 0;
+    *b = block_count(size)-1;
+    return 0;
+  }
+  *a = 0;
+  *b = block_count(parse_size(settings.size, NULL))-1;
+  return parse_range(str, a, b, 0);
 }
 
 // Any command starting with '.' - path spec

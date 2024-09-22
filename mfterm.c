@@ -47,6 +47,7 @@ int perform_filename_completion();
 char** mft_completion(char* text, int start, int end);
 int execute_line(char* line);
 void initialize_readline();
+void free_readline();
 void parse_cmdline(int argc, char** argv);
 
 void print_help();
@@ -58,7 +59,7 @@ int main(int argc, char** argv) {
   parse_cmdline(argc, argv);
   initialize_readline();
   input_loop();
-  write_history("~/.mfterm_history");
+  free_readline();
   return 0;
 }
 
@@ -155,7 +156,40 @@ void initialize_readline()
 {
   rl_readline_name = "MFT";
   rl_attempted_completion_function = (rl_completion_func_t*)mft_completion;
-  read_history("~/.mfterm_history");
+  using_history();
+  // read history file
+  char* home = getenv("HOME");
+  char* histfile = ".mfterm_history";
+  char* fn;
+  if( home ) {
+    fn = malloc(strlen(home)+strlen(histfile)+2);
+    strcpy(fn, home);
+    strcat(fn, "/");
+    strcat(fn, histfile);
+  } else {
+    fn = malloc(strlen(histfile)+1);
+    strcpy(fn, histfile);
+  }
+  read_history(fn);
+  free(fn);
+}
+
+void free_readline()
+{
+  char* home = getenv("HOME");
+  char* histfile = ".mfterm_history";
+  char* fn;
+  if( home ) {
+    fn = malloc(strlen(home)+strlen(histfile)+2);
+    strcpy(fn, home);
+    strcat(fn, "/");
+    strcat(fn, histfile);
+  } else {
+    fn = malloc(strlen(histfile)+1);
+    strcpy(fn, histfile);
+  }
+  write_history(fn);
+  free(fn);
 }
 
 /* Attempt to complete on the contents of TEXT.  START and END bound the
@@ -201,7 +235,6 @@ char** mft_completion(char* text, int start, int end) {
 
   return matches;
 }
-
 
 int perform_filename_completion() {
   for (int i = 0; commands[i].name; ++i) {
@@ -288,7 +321,6 @@ char* completion_sub_cmd_generator(const char* text, int state) {
  * state == 0 on first call.
  */
 char* completion_spec_generator(const char* text, int state) {
-
   // Parent context is initialized on the first call
   static instance_t* parent_inst;
   static const char* parent_end;
@@ -349,7 +381,7 @@ char* completion_spec_generator(const char* text, int state) {
 
 void print_help() {
   printf("A terminal interface for working with Mifare Classic tags.\n");
-  printf("Usage: mfterm [-v] [-h] [-k keyfile]\n");
+  printf("Usage: mfterm [-v] [-h] [-k keyfile] [-t tagfile] [-d dictfile]\n");
   printf("\n");
   printf("Options: \n");
   printf("  --help          (-h)   Show this help message.\n");
@@ -363,7 +395,7 @@ void print_help() {
 }
 
 void print_version() {
-  printf(PACKAGE_STRING); printf("\n");
+  printf(PACKAGE_STRING "\n");
   printf("Copyright (C) 2011-2013 Anders Sundman <anders@4zm.org>\n");
   printf("License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n");
   printf("This is free software: you are free to change and redistribute it.\n");
