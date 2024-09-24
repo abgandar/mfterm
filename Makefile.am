@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with mfterm.  If not, see <http://www.gnu.org/licenses/>.
 
-AM_CFLAGS = -g -Wall -Wconversion -std=c99 -Werror
+AM_CFLAGS = -g -Wall -Wconversion -std=c99
 
 SUBDIRS = .
 
