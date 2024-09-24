@@ -82,7 +82,7 @@ int mf_test_auth(const mf_tag_t* keys, size_t size1, size_t size2, mf_key_type_t
 /**
  * GEN2 special commands
  */
-int mf_gen2_wipe();
+int mf_gen1_wipe();
 
 /**
  * GEN3 special commands

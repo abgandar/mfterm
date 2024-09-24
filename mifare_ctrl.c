@@ -103,7 +103,7 @@ int mf_disconnect(int ret_state);
 bool mf_configure_device();
 bool mf_select_target();
 bool mf_authenticate(size_t block, const uint8_t* key, mf_key_type_t key_type);
-bool mf_gen2_unlock();
+bool mf_gen1_unlock();
 bool mf_read_blocks_internal(mf_tag_t* tag, const mf_tag_t* keys, mf_key_type_t key_type, size_t a, size_t b);
 bool mf_write_blocks_internal(const mf_tag_t* tag, const mf_tag_t* keys, mf_key_type_t key_type, size_t a, size_t b);
 bool mf_dictionary_attack_internal(mf_tag_t* tag);
@@ -196,7 +196,7 @@ int mf_read_blocks(mf_tag_t* tag, mf_key_type_t key_type, size_t a, size_t b) {
   if (mf_connect())
     return -1;
 
-  if (key_type == MF_KEY_UNLOCKED && !mf_gen2_unlock()) {
+  if (key_type == MF_KEY_UNLOCKED && !mf_gen1_unlock()) {
     printf("Unlocked read requested, but unlock failed!\n");
     return false;
   }
@@ -213,7 +213,7 @@ int mf_write_blocks(const mf_tag_t* tag, mf_key_type_t key_type, size_t a, size_
   if (mf_connect())
     return -1;
 
-  if (key_type == MF_KEY_UNLOCKED && !mf_gen2_unlock()) {
+  if (key_type == MF_KEY_UNLOCKED && !mf_gen1_unlock()) {
     printf("Unlocked read requested, but unlock failed!\n");
     return false;
   }
@@ -305,7 +305,7 @@ bool mf_select_target() {
 /**
  * Unlocking the card allows writing to block 0 of some pirate cards.
  */
-bool mf_gen2_unlock() {
+bool mf_gen1_unlock() {
   uint8_t abtHalt[4] = { 0x50, 0x00, 0x00, 0x00 };
 
   // Special unlock command
@@ -343,7 +343,7 @@ bool mf_gen2_unlock() {
 /**
  * This command wipes the entire card for GEN2 CUID cards.
  */
-int mf_gen2_wipe() {
+int mf_gen1_wipe() {
   uint8_t abtHalt[4] = { 0x50, 0x00, 0x00, 0x00 };
 
   // Special unlock command
@@ -489,7 +489,7 @@ bool mf_read_blocks_internal(mf_tag_t* tag, const mf_tag_t* keys, mf_key_type_t 
     bool authA = 0, authB = 0, read = 0;
     // do unauthenticated read
     if( !read && key_type == MF_KEY_UNLOCKED ) {
-      if( mf_gen2_unlock() )
+      if( mf_gen1_unlock() )
         read = nfc_initiator_mifare_cmd(device, MC_READ, (uint8_t)block, &mp);
     }
     // test key A
@@ -545,9 +545,10 @@ bool mf_write_blocks_internal(const mf_tag_t* tag, const mf_tag_t* keys, mf_key_
   int error = 0;
 
   // do not write a block 0 with incorrect BCC - card will be made invalid!
-  if (a == 0 && key_type == MF_KEY_UNLOCKED && (tag->amb[0].mbd.abtData[0] ^ tag->amb[0].mbd.abtData[1] ^ tag->amb[0].mbd.abtData[2] ^
+  if (a == 0 &&
+     (tag->amb[0].mbd.abtData[0] ^ tag->amb[0].mbd.abtData[1] ^ tag->amb[0].mbd.abtData[2] ^
       tag->amb[0].mbd.abtData[3] ^ tag->amb[0].mbd.abtData[4]) != 0x00) {
-    printf ("\nError: incorrect BCC in tag data!\n"); // ADD DATA
+    printf ("\nError: incorrect BCC in block 0!\n"); // ADD DATA
     return false;
   }
 
@@ -565,10 +566,10 @@ bool mf_write_blocks_internal(const mf_tag_t* tag, const mf_tag_t* keys, mf_key_
     }
 
     // skip block 0 (read-only)
-    if (block == 0 && key_type != MF_KEY_UNLOCKED ) {
-      printf(" "); fflush(stdout);
-      continue;
-    }
+//    if (block == 0 && key_type != MF_KEY_UNLOCKED ) {
+//      printf(" "); fflush(stdout);
+//      continue;
+//    }
 
     // prepare data to write
     memcpy (mp.mpd.abtData, tag->amb[block].mbd.abtData, 0x10);
@@ -577,7 +578,7 @@ bool mf_write_blocks_internal(const mf_tag_t* tag, const mf_tag_t* keys, mf_key_
     bool authA = 0, authB = 0, write = 0;
     // try unauthenticated write
     if (!write && key_type == MF_KEY_UNLOCKED) {
-      if( mf_gen2_unlock() )
+      if( mf_gen1_unlock() )
         write = nfc_initiator_mifare_cmd(device, MC_WRITE, (uint8_t)block, &mp);
     }
     if (!write && (key_type == MF_KEY_A || key_type == MF_KEY_AB)) {
@@ -594,9 +595,10 @@ bool mf_write_blocks_internal(const mf_tag_t* tag, const mf_tag_t* keys, mf_key_
     }
     if (key_type != MF_KEY_UNLOCKED && !authA && !authB) {
       // both auth failed, report and skip rest of sector
-      block--;
-      for(size_t i = 0; i < sector_size(block) && block <= b; i++, block++, error++)
+      size_t trailer = block_to_trailer(block);
+      for(; block <= trailer && block <= b; block++, error++)
         printf("?");
+      block--;
       continue;
     }
 
@@ -768,7 +770,7 @@ int mf_ident_tag()
     }
   }
 
-  printf("   GEN2: %s\n", mf_gen2_unlock() ? "yes" : "no");
+  printf("   GEN2: %s\n", mf_gen1_unlock() ? "yes" : "no");
 
   return mf_disconnect(0);
 }

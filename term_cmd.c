@@ -56,7 +56,7 @@ command_t commands[] = {
   { "write! block", com_write_block,   0, 1, "#block: Write block to a physical tag" },
   { "write!",       com_write_sector,  0, 1, "#sector: Write sector to a physical tag" },
 
-  { "gen2 wipe!",   com_gen2_wipe,     0, 1, "On GEN2 cards, wipe entire card without keys" },
+  { "gen1 wipe!",   com_gen1_wipe,     0, 1, "On GEN1 cards, wipe entire card without keys" },
 
   { "gen3 setuid!", com_gen3_writeuid, 0, 1, "On GEN3 cards, set UID without modifying block 0" },
   { "gen3 write0!", com_gen3_write0,   0, 1, "On GEN3 cards, write block 0 and set UID" },
@@ -75,7 +75,7 @@ command_t commands[] = {
   { "put perm",     com_put_perm,      0, 1, "#block A|B|AB ???: Set tag block permissions" },
   { "put",          com_put,           0, 1, "#block #offset xx xx xx|\"ASCII\": Set tag block data" },
 
-  { "set auth",     com_set_auth,      0, 1, "A|B|AB|*: Set keys to use for authentication (* = gen2 unlocked)" },
+  { "set auth",     com_set_auth,      0, 1, "A|B|AB|*: Set keys to use for authentication (* = gen1 unlock)" },
   { "set size",     com_set_size,      0, 1, "1K|4K: Set the default tag size" },
   { "set device",   com_set_device,    0, 1, "Set NFC device to use" },
   { "set",          com_set,           0, 1, "Print current settings" },
@@ -255,12 +255,12 @@ int com_clear_sector(char* arg) {
   }
 
   size_t s1, s2;
-  if( parse_blocks( sector, &s1, &s2, settings.size ) != 0 ) {
+  if( parse_sectors( sector, &s1, &s2, settings.size ) != 0 ) {
     printf("Invalid sector range: %s\n", sector);
     return -1;
   }
   if (s2 > 39 || s1 > s2) {
-    printf("Invalid block range: %lu - %lu\n", s1, s2);
+    printf("Invalid sector range: %lu - %lu\n", s1, s2);
     return -1;
   }
   s1 = sector_to_header(s1);
@@ -429,10 +429,10 @@ int com_print_sectors(char* arg) {
 int com_put(char* arg) {
   char* block_str = strtok(arg, " ");
   char* offset_str = strtok(NULL, " ");
-  char* byte_str = strtok(NULL, " ");
+  char* arg_str = strtok(NULL, "");   // remainder of string
 
-  if (!block_str || !offset_str || !byte_str) {
-    printf("Too few arguments: #block #offset xx xx xx .. xx\n");
+  if (!block_str || !offset_str || !arg_str) {
+    printf("Too few arguments: #block #offset xx .. xx|\"ASCII\"\n");
     return -1;
   }
 
@@ -460,17 +460,17 @@ int com_put(char* arg) {
   uint8_t bytes[16];
   uint8_t* b = bytes+offset;
   size_t count = 0;
-  if( *byte_str == '"' ) {
+  if( *arg_str == '"' ) {
     // ASCII string
-    byte_str++;
+    arg_str++;
     int escape = 0;
     do {
-      if( !escape && *byte_str == '"' ) {
+      if( !escape && *arg_str == '"' ) {
         break;
       }
-      if( !escape && *byte_str == '\\' ) {
+      if( !escape && *arg_str == '\\' ) {
         escape = 1;
-        byte_str++;
+        arg_str++;
         continue;
       }
 
@@ -479,11 +479,11 @@ int com_put(char* arg) {
         printf("Too many bytes specified.\n");
         return -1;
       }
-      *b++ = (uint8_t)*byte_str++;
+      *b++ = (uint8_t)*arg_str++;
       count++;
       escape = 0;
-    } while(*byte_str != '\0');
-    if(*byte_str != '"') {
+    } while(*arg_str != '\0');
+    if(*arg_str != '"') {
       printf("Unterminated string.\n");
       return -1;
     }
@@ -494,7 +494,7 @@ int com_put(char* arg) {
   }
   else {
     // byte tokens
-    do {
+    for (char* byte_str = strtok(arg_str, " "); byte_str; byte_str = strtok(NULL, " ")) {
       long int byte = strtol(byte_str, &byte_str, 16);
       if (*byte_str != '\0') {
         printf("Invalid byte character (non hex): %s\n", byte_str);
@@ -512,7 +512,7 @@ int com_put(char* arg) {
       }
       *b++ = (uint8_t)byte;
       count++;
-    } while((byte_str = strtok(NULL, " ")) != (char*)NULL);
+    }
   }
 
   if (count == 0) {
@@ -629,7 +629,7 @@ int com_put_uid(char* arg) {
   return 0;
 }
 
-int com_gen2_wipe(char* arg) {
+int com_gen1_wipe(char* arg) {
   char* yes_str = strtok(arg, " ");
 
   if (!yes_str || strncmp( yes_str, "YES!", 4 ) != 0 || strtok(NULL, " ") != (char*)NULL) {
@@ -637,7 +637,7 @@ int com_gen2_wipe(char* arg) {
     return -1;
   }
 
-  return mf_gen2_wipe();
+  return mf_gen1_wipe();
 }
 
 int com_gen3_writeuid(char* arg) {

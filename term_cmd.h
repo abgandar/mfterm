@@ -75,8 +75,8 @@ int com_set_auth(char* arg);
 int com_set_device(char* arg);
 int com_set_size(char* arg);
 
-// GEN2 card commands
-int com_gen2_wipe(char* arg);
+// GEN1 card commands
+int com_gen1_wipe(char* arg);
 
 // GEN3 card commands
 int com_gen3_writeuid(char* arg);
