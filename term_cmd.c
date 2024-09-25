@@ -72,7 +72,7 @@ command_t commands[] = {
 
   { "put uid",      com_put_uid,       0, 1, "xx xx xx xx [xx xx xx]: Set tag UID" },
   { "put key",      com_put_key,       0, 1, "#sector A|B|AB xxxxxxxxxxxx: Set tag sector key" },
-  { "put perm",     com_put_perm,      0, 1, "#block A|B|AB ???: Set tag block permissions" },
+  { "put perm",     com_put_perm,      0, 1, "#block A|B|AB C1C2C3: Set tag block permissions" },
   { "put",          com_put,           0, 1, "#block #offset xx xx xx|\"ASCII\": Set tag block data" },
 
   { "set auth",     com_set_auth,      0, 1, "A|B|AB|*: Set keys to use for authentication (* = gen1 unlock)" },
@@ -107,13 +107,13 @@ command_t commands[] = {
   { (char *)NULL,   (cmd_func_t)NULL,      0, 0, (char *)NULL }
 };
 
-// Parse a range of positive numbers in given base A-B (with either number ommitted leaving corresponding a and b unchanged) 
+// Parse a range of positive numbers in given base A-B (with either number ommitted leaving corresponding a and b unchanged)
 int parse_range(const char* str, size_t* a, size_t* b, int base);
 
-// Parse a range of sectors 
+// Parse a range of sectors
 int parse_sectors(const char* str, size_t* a, size_t* b, const char* def);
 
-// Parse a range of blocks 
+// Parse a range of blocks
 int parse_blocks(const char* str, size_t* a, size_t* b, const char* def);
 
 // Parse a Mifare key type argument (A|B|AB|*)
@@ -563,7 +563,7 @@ int com_put_key(char* arg) {
   }
 
   // Parse the key
-  uint8_t key[6];  
+  uint8_t key[6];
   if (strncmp(key_str, "0x", 2) == 0)
     key_str += 2;
   if (strlen(key_str) != 12) {
@@ -581,7 +581,7 @@ int com_put_key(char* arg) {
     // copy to appropriate keys
     if (key_type == MF_KEY_A || key_type == MF_KEY_AB)
       memcpy( current_tag.amb[block].mbt.abtKeyA, key, sizeof(key) );
-    
+
     if (key_type == MF_KEY_B || key_type == MF_KEY_AB)
       memcpy( current_tag.amb[block].mbt.abtKeyB, key, sizeof(key) );
   }
@@ -590,6 +590,66 @@ int com_put_key(char* arg) {
 }
 
 int com_put_perm(char* arg) {
+  char* block_str = strtok(arg, " ");
+  char* perm_str = strtok(NULL, " ");
+
+  if (strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  if (!block_str || !perm_str) {
+    printf("Too few arguments: #block C1C2C3\n");
+    printf("C1 C2 C3  !   R   W   I   D   !  AR  AW  ACR ACW BR  BW\n"
+           "----------+-------------------+------------------------\n"
+           "0  0  0   !  A|B A|B A|B A|B  !   x   A   A   x   A   A\n"
+           "0  0  1   !  A|B  x   x  A|B  !   x   A   A   A   A   A\n"
+           "0  1  0   !  A|B  x   x   x   !   x   x   A   x   A   x\n"
+           "0  1  1   !   B   B   x   x   !   x   B  A|B  B   x   B\n"
+           "1  0  0   !  A|B  B   x   x   !   x   B  A|B  x   x   B\n"
+           "1  0  1   !   B   x   x   x   !   x   x  A|B  B   x   x\n"
+           "1  1  0   !  A|B  B   B  A|B  !   x   x  A|B  x   x   x\n"
+           "1  1  1   !   x   x   x   x   !   x   x  A|B  x   x   x\n"
+    );
+    return -1;
+  }
+
+  // parse block
+  size_t block1, block2;
+  if (parse_blocks(block_str, &block1, &block2, settings.size) != 0) {
+    printf("Unknown argument: %s\n", block_str);
+    return -1;
+  }
+  if (block2 > 0xff || block1 > block2) {
+    printf("Invalid block [0,ff]: %lu - %lu\n", block1, block2);
+    return -1;
+  }
+
+  // parse permission bits
+  if (strspn(perm_str, "01") < 3 || perm_str[3] != '\0') {
+    printf("Invalid permissions C1C2C3\n");
+    printf("C1 C2 C3  !   R   W   I   D   !  AR  AW  ACR ACW BR  BW\n"
+           "----------+-------------------+------------------------\n"
+           "0  0  0   !  A|B A|B A|B A|B  !   x   A   A   x   A   A\n"
+           "0  0  1   !  A|B  x   x  A|B  !   x   A   A   A   A   A\n"
+           "0  1  0   !  A|B  x   x   x   !   x   x   A   x   A   x\n"
+           "0  1  1   !   B   B   x   x   !   x   B  A|B  B   x   B\n"
+           "1  0  0   !  A|B  B   x   x   !   x   B  A|B  x   x   B\n"
+           "1  0  1   !   B   x   x   x   !   x   x  A|B  B   x   x\n"
+           "1  1  0   !  A|B  B   B  A|B  !   x   x  A|B  x   x   x\n"
+           "1  1  1   !   x   x   x   x   !   x   x  A|B  x   x   x\n"
+    );
+    return -1;
+  }
+  uint32_t c1 = (uint32_t)(perm_str[0]-'0');
+  uint32_t c2 = (uint32_t)(perm_str[1]-'0');
+  uint32_t c3 = (uint32_t)(perm_str[2]-'0');
+
+  // set bits for all blocks
+  for (size_t block =  block1; block <= block2; block++ ) {
+    set_ac(&current_tag, block, c1, c2, c3);
+  }
+
   return 0;
 }
 
@@ -735,7 +795,7 @@ int com_set_auth(char* arg) {
     printf("Too many arguments\n");
     return -1;
   }
-  
+
   mf_key_type_t key_type = parse_key_type(a, NULL);
   if( key_type == MF_KEY_A )
     settings.auth = "A";
@@ -854,7 +914,7 @@ int com_keys_put(char* arg) {
   }
 
   // Parse the key
-  uint8_t key[6];  
+  uint8_t key[6];
   if (strncmp(key_str, "0x", 2) == 0)
     key_str += 2;
   if (strlen(key_str) != 12) {
@@ -872,7 +932,7 @@ int com_keys_put(char* arg) {
     // copy to appropriate keys
     if (key_type == MF_KEY_A || key_type == MF_KEY_AB)
       memcpy( current_auth.amb[block].mbt.abtKeyA, key, sizeof(key) );
-    
+
     if (key_type == MF_KEY_B || key_type == MF_KEY_AB)
       memcpy( current_auth.amb[block].mbt.abtKeyB, key, sizeof(key) );
   }
@@ -1306,7 +1366,7 @@ int parse_range(const char* str, size_t* a, size_t* b, int base) {
   return (*s == '\0') ? 0 : -1;
 }
 
-// Parse a range of sectors 
+// Parse a range of sectors
 int parse_sectors(const char* str, size_t* a, size_t* b, const char* def) {
   if (str == NULL) {
     str = def;
@@ -1323,7 +1383,7 @@ int parse_sectors(const char* str, size_t* a, size_t* b, const char* def) {
   return parse_range(str, a, b, 0);
 }
 
-// Parse a range of blocks 
+// Parse a range of blocks
 int parse_blocks(const char* str, size_t* a, size_t* b, const char* def) {
   if (str == NULL) {
     str = def;

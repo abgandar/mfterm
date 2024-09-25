@@ -116,4 +116,6 @@ uint8_t* key_from_tag(const mf_tag_t* tag, mf_key_type_t key_type, size_t block)
 // the block (anywhere in the sector).
 void key_to_tag(mf_tag_t* tag, const uint8_t* key, mf_key_type_t key_type, size_t block);
 
+void set_ac(mf_tag_t* tag, size_t block, uint32_t c1, uint32_t c2, uint32_t c3);
+
 #endif

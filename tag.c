@@ -108,7 +108,7 @@ int save_txt(const char* fn, const mf_tag_t* tag) {
 
     key = key_from_tag(tag, MF_KEY_B, block);
     const int r2 = fprintf(key_file, "%s\n", sprint_key(key));
- 
+
     if (r1 < 0 || r2 < 0) {
       fclose(key_file);
       return 2;
@@ -266,7 +266,6 @@ void print_tag_data_range(size_t byte_offset, size_t bit_offset, size_t byte_len
     printf("\n");
   }
 }
-
 
 void print_tag_block_range(size_t first, size_t last) {
   if( last > sizeof(mf_tag_t)/sizeof(mf_block_t) )
@@ -506,8 +505,7 @@ uint8_t* key_from_tag(const mf_tag_t* tag, mf_key_type_t key_type, size_t block)
   return key;
 }
 
-// Write key to the sector of a tag, where the sector is specified by
-// the block.
+// Write key to the sector of a tag, where the sector is specified by the block.
 void key_to_tag(mf_tag_t* tag, const uint8_t* key, mf_key_type_t key_type, size_t block) {
   size_t trailer_block = block_to_trailer(block);
 
@@ -516,3 +514,26 @@ void key_to_tag(mf_tag_t* tag, const uint8_t* key, mf_key_type_t key_type, size_
   else
     memcpy(tag->amb[trailer_block].mbt.abtKeyB, key, 6);
 }
+
+// Set permission bits for given block
+void set_ac(mf_tag_t* tag, size_t block, uint32_t c1, uint32_t c2, uint32_t c3) {
+  size_t trailer = block_to_trailer(block);
+
+  // extract access bits (little endian)
+  uint32_t ac = ((uint32_t)tag->amb[trailer].mbt.abtAccessBits[0] | (uint32_t)tag->amb[trailer].mbt.abtAccessBits[1]<<8 |
+                 (uint32_t)tag->amb[trailer].mbt.abtAccessBits[2]<<16 | (uint32_t)tag->amb[trailer].mbt.abtAccessBits[3]<<24)>>12;
+
+  // Set the correct C1, C2, C3 bits
+  const int offset = ((block < 0x80) ? ((int)block%4) : (((int)block%16)/5));
+  const uint32_t mask = ((1u) | (1u<<4) | (1u<<8))<<offset;
+  const uint32_t bits = ((c1) | (c2<<4) | (c3<<8))<<offset;
+  ac = (ac&(~mask)) | (bits&mask);
+  ac = (ac<<12) | ((~ac)&0b111111111111);
+
+  // Write permission bits
+  tag->amb[trailer].mbt.abtAccessBits[0] = (uint8_t)(ac&0xFF);
+  tag->amb[trailer].mbt.abtAccessBits[1] = (uint8_t)((ac>>8)&0xFF);
+  tag->amb[trailer].mbt.abtAccessBits[2] = (uint8_t)((ac>>16)&0xFF);
+  tag->amb[trailer].mbt.abtAccessBits[3] = (uint8_t)((ac>>24)&0xFF);
+}
+

@@ -539,7 +539,6 @@ bool mf_read_blocks_internal(mf_tag_t* tag, const mf_tag_t* keys, mf_key_type_t 
   return true;
 }
 
-
 bool mf_write_blocks_internal(const mf_tag_t* tag, const mf_tag_t* keys, mf_key_type_t key_type, size_t a, size_t b) {
   mifare_param mp;
   int error = 0;
@@ -621,7 +620,6 @@ bool mf_write_blocks_internal(const mf_tag_t* tag, const mf_tag_t* keys, mf_key_
   return true;
 }
 
-
 bool mf_dictionary_attack_internal(mf_tag_t* tag) {
   int all_keys_found = 1;
 
@@ -689,7 +687,6 @@ bool mf_dictionary_attack_internal(mf_tag_t* tag) {
   return true;
 }
 
-
 bool mf_test_auth_internal(const mf_tag_t* keys, size_t s1, size_t s2, mf_key_type_t key_type) {
   printf("xS  T  Key           Status\n");
   printf("----------------------------\n");
@@ -712,7 +709,6 @@ bool mf_test_auth_internal(const mf_tag_t* keys, size_t s1, size_t s2, mf_key_ty
 
   return true;
 }
-
 
 bool mf_authenticate(size_t block, const uint8_t* key, mf_key_type_t key_type) {
   mifare_param mp;
@@ -742,7 +738,7 @@ int mf_ident_tag()
   id[2] = target.nti.nai.btSak;
   memcpy(id+3, target.nti.nai.abtAts, sizeof(id)-3);
   for( c = cards; c->len > 0 && memcmp(id, c->id, c->len) != 0; c++ );
- 
+
   printf("ATQA: %02x %02x  SAK: %02x", target.nti.nai.abtAtqa[0], target.nti.nai.abtAtqa[1], target.nti.nai.btSak);
   if( target.nti.nai.szAtsLen > 0 ) {
     printf("  ATS:");
@@ -781,7 +777,6 @@ int mf_version()
   printf("%s\t\tlibnfc %s\n", PACKAGE_STRING, nfc_version() );
   return 0;
 }
-
 
 bool transmit_bits(const uint8_t *pbtTx, const size_t szTxBits)
 {
