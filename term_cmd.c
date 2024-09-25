@@ -44,17 +44,16 @@ command_t commands[] = {
   { "exit",         com_quit,          0, 0, "Synonym for 'quit'" },
 
   { "load",         com_load_tag,      1, 1, "Load tag data from a file" },
-  { "open",         com_load_tag,      1, 0, "Load tag data from a file" },
   { "save",         com_save_tag,      1, 1, "Save tag data to a file" },
 
   { "reset",        com_reset_tag,     0, 1, "Reset all tag data including keys and permissions" },
-  { "clear block",  com_clear_block,   0, 1, "Clear the block user data" },
   { "clear",        com_clear_sector,  0, 1, "Clear the sector user data" },
+  { "clear block",  com_clear_block,   0, 1, "Clear the block user data" },
 
-  { "read block",   com_read_block,    0, 1, "#sector: Read block from a physical tag" },
   { "read",         com_read_sector,   0, 1, "#sector: Read sector from a physical tag" },
-  { "write! block", com_write_block,   0, 1, "#block: Write block to a physical tag" },
+  { "read block",   com_read_block,    0, 1, "#sector: Read block from a physical tag" },
   { "write!",       com_write_sector,  0, 1, "#sector: Write sector to a physical tag" },
+  { "write! block", com_write_block,   0, 1, "#block: Write block to a physical tag" },
 
   { "gen1 wipe!",   com_gen1_wipe,     0, 1, "On GEN1 cards, wipe entire card without keys" },
 
@@ -65,21 +64,22 @@ command_t commands[] = {
   { "ident",        com_ident,         0, 1, "Identify card and print public information" },
   { "check",        com_check_tag,     0, 1, "Check the current tag data" },
 
+  { "print",        com_print_sectors, 0, 1, "#sector: Print tag sector data" },
+  { "print block",  com_print_blocks,  0, 1, "#block: Print tag block data" },
   { "print keys",   com_print_keys,    0, 1, "#sector: Print tag sector keys" },
   { "print perm",   com_print_perm,    0, 1, "#sector: Print tag sector permissions" },
-  { "print block",  com_print_blocks,  0, 1, "#block: Print tag block data" },
-  { "print",        com_print_sectors, 0, 1, "#sector: Print tag sector data" },
 
+  { "put",          com_put,           0, 1, "#block #offset xx xx xx|\"ASCII\": Set tag block data" },
   { "put uid",      com_put_uid,       0, 1, "xx xx xx xx [xx xx xx]: Set tag UID" },
   { "put key",      com_put_key,       0, 1, "#sector A|B|AB xxxxxxxxxxxx: Set tag sector key" },
-  { "put perm",     com_put_perm,      0, 1, "#block A|B|AB C1C2C3: Set tag block permissions" },
-  { "put",          com_put,           0, 1, "#block #offset xx xx xx|\"ASCII\": Set tag block data" },
+  { "put perm",     com_put_perm,      0, 1, "#block C1C2C3: Set tag block permissions" },
 
+  { "set",          com_set,           0, 1, "Print current settings" },
   { "set auth",     com_set_auth,      0, 1, "A|B|AB|*: Set keys to use for authentication (* = gen1 unlock)" },
   { "set size",     com_set_size,      0, 1, "1K|4K: Set the default tag size" },
   { "set device",   com_set_device,    0, 1, "Set NFC device to use" },
-  { "set",          com_set,           0, 1, "Print current settings" },
 
+  { "keys",         com_keys_print,    0, 1, "#sector: Print sector keys" },
   { "keys load",    com_keys_load,     1, 1, "Load keys from file" },
   { "keys save",    com_keys_save,     1, 1, "Save keys to file" },
   { "keys clear",   com_keys_clear,    0, 1, "Clear keys" },
@@ -87,17 +87,16 @@ command_t commands[] = {
   { "keys import",  com_keys_import,   0, 1, "#sector A|B|AB: Import sector keys from tag" },
   { "keys export",  com_keys_export,   0, 1, "#sector A|B|AB: Export sector keys to tag" },
   { "keys test",    com_keys_test,     0, 1, "#sector A|B|AB: Try to authenticate with the keys" },
-  { "keys",         com_keys_print,    0, 1, "#sector: Print sector keys" },
 
+  { "dict",         com_dict_print,    0, 1, "Print the key dictionary" },
   { "dict load",    com_dict_load,     1, 1, "Load a dictionary key file" },
+  { "dict add",     com_dict_add,      0, 1, "Add key to key dictionary" },
   { "dict clear",   com_dict_clear,    0, 1, "Clear the key dictionary" },
   { "dict attack",  com_dict_attack,   0, 1, "Find keys of a physical tag"},
-  { "dict add",     com_dict_add,      0, 1, "Add key to key dictionary" },
-  { "dict",         com_dict_print,    0, 1, "Print the key dictionary" },
 
+  { "spec",         com_spec_print,    0, 1, "Print the specification" },
   { "spec load",    com_spec_load,     1, 1, "Load a specification file" },
   { "spec clear",   com_spec_clear,    0, 1, "Unload the specification" },
-  { "spec",         com_spec_print,    0, 1, "Print the specification" },
 
   { "mac key",      com_mac_key_get_set,   0, 1, "<k0..k7> : Get or set MAC key" },
   { "mac compute",  com_mac_block_compute, 0, 1, "#block : Compute block MAC" },
