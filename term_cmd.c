@@ -49,6 +49,7 @@ command_t commands[] = {
   { "reset",        com_reset_tag,     0, 1, "Reset all tag data including keys and permissions" },
   { "clear",        com_clear_sector,  0, 1, "Clear the sector user data" },
   { "clear block",  com_clear_block,   0, 1, "Clear the block user data" },
+  { "clear all",    com_clear_all,     0, 1, "Clear all data" },
 
   { "read",         com_read_sector,   0, 1, "#sector: Read sector from a physical tag" },
   { "read block",   com_read_block,    0, 1, "#sector: Read block from a physical tag" },
@@ -63,6 +64,7 @@ command_t commands[] = {
 
   { "ident",        com_ident,         0, 1, "Identify card and print public information" },
   { "check",        com_check_tag,     0, 1, "Check the current tag data" },
+  { "fix",          com_fix_tag,       0, 1, "Try to fix errors in current tag data" },
 
   { "print",        com_print_sectors, 0, 1, "#sector: Print tag sector data" },
   { "print block",  com_print_blocks,  0, 1, "#block: Print tag block data" },
@@ -75,7 +77,7 @@ command_t commands[] = {
   { "put perm",     com_put_perm,      0, 1, "#block C1C2C3: Set tag block permissions" },
 
   { "set",          com_set,           0, 1, "Print current settings" },
-  { "set auth",     com_set_auth,      0, 1, "A|B|AB|*: Set keys to use for authentication (* = gen1 unlock)" },
+  { "set auth",     com_set_auth,      0, 1, "A|B|AB|*: Set keys for authentication (* = gen1 unlock)" },
   { "set size",     com_set_size,      0, 1, "1K|4K: Set the default tag size" },
   { "set device",   com_set_device,    0, 1, "Set NFC device to use" },
 
@@ -219,6 +221,21 @@ int com_save_tag(char* arg) {
 }
 
 int com_reset_tag(char* arg) {
+  if (strtok(arg, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  reset_tag(&current_tag);
+  return 0;
+}
+
+int com_clear_all(char* arg) {
+  if (strtok(arg, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
   clear_tag(&current_tag);
   return 0;
 }
@@ -376,14 +393,48 @@ int com_ident(char* arg) {
 }
 
 int com_check_tag(char* arg) {
+  char* a = strtok(arg, " ");
+
+  if (a && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  check_tag(&current_tag, false);
+  return 0;
+}
+
+int com_fix_tag(char* arg) {
+  char* a = strtok(arg, " ");
+
+  if (a && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  check_tag(&current_tag, true);
   return 0;
 }
 
 int com_devices(char* arg) {
+  char* a = strtok(arg, " ");
+
+  if (a && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
   return mf_devices();
 }
 
 int com_version(char* arg) {
+  char* a = strtok(arg, " ");
+
+  if (a && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
   return mf_version();
 }
 

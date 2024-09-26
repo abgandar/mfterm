@@ -44,6 +44,7 @@ int com_save_tag(char* arg);
 
 // Safely clear (zero) commands (preserve keys, access bits, block0)
 int com_reset_tag(char* arg);
+int com_clear_all(char* arg);
 int com_clear_sector(char* arg);
 int com_clear_block(char* arg);
 
@@ -56,6 +57,7 @@ int com_write_sector(char* arg);
 // Ident card
 int com_ident(char* arg);
 int com_check_tag(char* arg);
+int com_fix_tag(char* arg);
 
 // Tag print commands
 int com_print_blocks(char* arg);

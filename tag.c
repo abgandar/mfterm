@@ -142,7 +142,6 @@ int save_auth(const char* fn) {
   return save_txt(fn, &current_tag);
 }
 
-
 int import_auth(mf_key_type_t key_type, size_t s1, size_t s2) {
   for( size_t sector = s1; sector <= s2; sector++ ) {
     size_t block = sector_to_trailer(sector);
@@ -370,13 +369,7 @@ const char* sprint_key(const uint8_t* key) {
   if (!key)
     return NULL;
 
-  sprintf(str_buff, "%02x%02x%02x%02x%02x%02x",
-          (unsigned int)(key[0]),
-          (unsigned int)(key[1]),
-          (unsigned int)(key[2]),
-          (unsigned int)(key[3]),
-          (unsigned int)(key[4]),
-          (unsigned int)(key[5]));
+  sprintf(str_buff, "%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx", key[0], key[1], key[2], key[3], key[4], key[5]);
 
   return str_buff;
 }
@@ -420,6 +413,18 @@ void clear_blocks(mf_tag_t* tag, size_t b1, size_t b2) {
 
 void clear_tag(mf_tag_t* tag) {
   memset((void*)tag, 0x00, MF_4K);
+}
+
+void reset_tag(mf_tag_t* tag) {
+  clear_tag(tag);
+
+  const uint8_t block0[] = {0x11, 0x22, 0x33, 0x44, 0x44, 0x08, 0x04, 0x00, 0xfe, 0xed, 0xca, 0xfe, 0xba, 0xbe, 0xf0, 0x0d};
+  memcpy((void*)tag->amb[0].mbd.abtData, block0, 0x10);
+
+  const uint8_t trailer[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x0f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  for (size_t sector = 0; sector < sector_count(MF_4K); sector++) {
+    memcpy((void*)tag->amb[sector_to_trailer(sector)].mbd.abtData, trailer, 0x10);
+  }
 }
 
 void clear_non_auth_data(mf_tag_t* tag) {
@@ -517,14 +522,14 @@ void key_to_tag(mf_tag_t* tag, const uint8_t* key, mf_key_type_t key_type, size_
 
 // Set permission bits for given block
 void set_ac(mf_tag_t* tag, size_t block, uint32_t c1, uint32_t c2, uint32_t c3) {
-  size_t trailer = block_to_trailer(block);
+  const size_t trailer = block_to_trailer(block);
 
   // extract access bits (little endian)
-  uint32_t ac = ((uint32_t)tag->amb[trailer].mbt.abtAccessBits[0] | (uint32_t)tag->amb[trailer].mbt.abtAccessBits[1]<<8 |
+  uint32_t ac = ((uint32_t)tag->amb[trailer].mbt.abtAccessBits[0]     | (uint32_t)tag->amb[trailer].mbt.abtAccessBits[1]<<8 |
                  (uint32_t)tag->amb[trailer].mbt.abtAccessBits[2]<<16 | (uint32_t)tag->amb[trailer].mbt.abtAccessBits[3]<<24)>>12;
 
   // Set the correct C1, C2, C3 bits
-  const int offset = ((block < 0x80) ? ((int)block%4) : (((int)block%16)/5));
+  const uint32_t offset = ((block < 0x80) ? ((uint32_t)block%4) : (((uint32_t)block%16)/5));
   const uint32_t mask = ((1u) | (1u<<4) | (1u<<8))<<offset;
   const uint32_t bits = ((c1) | (c2<<4) | (c3<<8))<<offset;
   ac = (ac&(~mask)) | (bits&mask);
@@ -537,3 +542,58 @@ void set_ac(mf_tag_t* tag, size_t block, uint32_t c1, uint32_t c2, uint32_t c3) 
   tag->amb[trailer].mbt.abtAccessBits[3] = (uint8_t)((ac>>24)&0xFF);
 }
 
+// check and possibly fix tag
+void check_tag(mf_tag_t* tag, bool fix) {
+  int errors;
+  uint8_t* d;
+
+  printf("Checking BCC [");
+  errors = 0;
+  d = tag->amb[0].mbd.abtData;
+  if ((d[0] ^ d[1] ^ d[2] ^ d[3]) != d[4]) {
+    if (fix) {
+      printf("00] 1 warning: %02x instead of %02x fixed\n", d[4], d[0] ^ d[1] ^ d[2] ^ d[3]);
+      d[4] = d[0] ^ d[1] ^ d[2] ^ d[3];
+    } else {
+      printf("00] 1 warning: %02x instead of %02x\n", d[4], d[0] ^ d[1] ^ d[2] ^ d[3]);
+    }
+  } else {
+    printf(".]\n");
+  }
+
+  printf("Checking sector access codes [");
+  errors = 0;
+  for (size_t sector = 0; sector < sector_count(MF_4K); sector++) {
+    size_t trailer = sector_to_trailer(sector);
+    d = tag->amb[trailer].mbt.abtAccessBits;
+    uint32_t nac = (uint32_t)d[0] | (uint32_t)(d[1]&0x0F)<<8;
+    uint32_t  ac = (uint32_t)(d[1]>>4) | (uint32_t)(d[2])<<4;
+    if ((ac^nac) != 0xFFF) {
+      errors++;
+      if (sector == 0) {
+        printf("%02zx", sector);
+      } else {
+        printf(" %02zx", sector);
+      }
+      if (fix) {
+        ac = (ac<<12) | ((~ac)&0b111111111111);
+        d[0] = (uint8_t)(ac&0xFF);
+        d[1] = (uint8_t)((ac>>8)&0xFF);
+        d[2] = (uint8_t)((ac>>16)&0xFF);
+        d[3] = (uint8_t)((ac>>24)&0xFF);
+      }
+    } else {
+      printf(".");
+    }
+    if (sector == 0x0f) printf(" ");
+    fflush(stdout);
+  }
+  if (errors > 0) {
+    if (fix)
+      printf("] %d errors fixed\n", errors);
+    else
+      printf("] %d errors\n", errors);
+  } else {
+    printf("]\n");
+  }
+}

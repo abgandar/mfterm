@@ -30,6 +30,7 @@
 #include <nfc/nfc.h>
 #include "mfterm.h"
 #include "term_cmd.h"
+#include "tag.h"
 #include "util.h"
 #include "spec_syntax.h"
 
@@ -58,6 +59,7 @@ void print_version();
 int main(int argc, char** argv) {
   parse_cmdline(argc, argv);
   initialize_readline();
+  reset_tag(&current_tag);
   input_loop();
   free_readline();
   return 0;
@@ -72,29 +74,29 @@ void parse_cmdline(int argc, char** argv) {
     {"dict",      required_argument, 0,  'd' },
     {0,           0,                 0,  0   }
   };
-  
+
   char* tag_file = NULL;
   char* keys_file = NULL;
   char* dict_file = NULL;
-  
+
   int opt = 0;
   int long_index = 0;
-  while ((opt = getopt_long(argc, argv,"hvt:k:d:", 
+  while ((opt = getopt_long(argc, argv,"hvt:k:d:",
 			    long_options, &long_index )) != -1) {
     switch (opt) {
-    case 'h' : 
+    case 'h' :
       print_help();
       exit(0);
     case 'v' :
       print_version();
       exit(0);
-    case 't' : tag_file = optarg; 
+    case 't' : tag_file = optarg;
       break;
-    case 'k' : keys_file = optarg; 
+    case 'k' : keys_file = optarg;
       break;
-    case 'd' : dict_file = optarg; 
+    case 'd' : dict_file = optarg;
       break;
-    default : 
+    default :
       exit(1);
     }
   }
