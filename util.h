@@ -27,16 +27,13 @@
    into STRING. */
 char* trim(char* string);
 
-// Allocate a new string and duplicate the argument string.
-char* strdup(const char* string);
-
 // Print a byte array in hex without byte separation
 void print_hex_array(const unsigned char* data, size_t nbytes);
 
 // Print a byte array in hex with the specified byte separation.
-void print_hex_array_sep(const unsigned char* data, size_t nbytes, char* sep);
+void print_hex_array_sep(const unsigned char* data, size_t nbytes, const char* sep);
 
 // Print binary data as ascii - replace non printable chars with nonascii
-void print_ascii_rendering(const unsigned char* data, size_t nbytes, char nonascii);
+void print_ascii_rendering(const unsigned char* data, size_t nbytes, const char nonascii);
 
 #endif

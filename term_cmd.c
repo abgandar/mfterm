@@ -1354,7 +1354,6 @@ int com_mac_validate(char* arg) {
   return 0;
 }
 
-
 mf_size_t parse_size(const char* str, const char* def) {
   if (str == NULL) {
     str = def;

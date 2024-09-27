@@ -26,7 +26,6 @@ static key_list_t* key_list = NULL;
 
 key_list_t* kl_add(key_list_t** list, const uint8_t* key);
 void kl_clear(key_list_t** list);
-
 key_list_t* kl_make_node(const uint8_t* key);
 int key_cmp(const uint8_t* k1, const uint8_t* k2);
 
@@ -42,7 +41,6 @@ key_list_t* dictionary_get() {
   return key_list;
 }
 
-// Append a node to the list. Don't append duplicates, O(n) operation.
 key_list_t* kl_add(key_list_t** list, const uint8_t* key) {
   if (list == NULL)
     return NULL;
@@ -51,20 +49,19 @@ key_list_t* kl_add(key_list_t** list, const uint8_t* key) {
   if (*list == NULL)
     return *list = kl_make_node(key);
 
-  // Append (but no duplicates)
+  // Append
   key_list_t* it = *list;
   key_list_t* last = NULL;
   while(it) {
-
     // Don't add duplicates, but move the key first in the list
     if (key_cmp(it->key, key) == 0) {
       if (last) {
-        last->next = it->next; // disconnect it
-        it->next = *list;      // move it fisrt
-        *list = it;            // re-point the head
+        last->next = it->next;
+        it->next = *list;
+        *list = it;
       }
 
-      return NULL; // Return null on duplicates
+      return NULL;
     }
     last = it;
     it = it->next;
@@ -77,7 +74,6 @@ void kl_clear(key_list_t** list) {
   if (list == NULL || *list == NULL)
     return;
 
-  // Free the list nodes
   key_list_t* it = *list;
   do {
     key_list_t* next = it->next;
@@ -85,11 +81,10 @@ void kl_clear(key_list_t** list) {
     it = next;
   } while(it);
 
-  *list = 0;
+  *list = NULL;
 }
 
 key_list_t* kl_make_node(const uint8_t* key) {
-  // Create the list node
   key_list_t* new_node = (key_list_t*) malloc(sizeof(key_list_t));
   memcpy((void*)new_node, key, 6);
   new_node->next = NULL;
