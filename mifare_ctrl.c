@@ -745,18 +745,30 @@ int mf_ident_tag()
     for( size_t i = 0; i < target.nti.nai.szAtsLen; i++ )
       printf(" %02x", target.nti.nai.abtAts[i]);
   }
+
   printf("  UID:");
   for( size_t i = 0; i < target.nti.nai.szUidLen; i++ )
     printf(" %02x", target.nti.nai.abtUid[i]);
+  if (target.nti.nai.szUidLen == 4) {
+    if (target.nti.nai.abtUid[0] == 0x08)
+      printf(" (RID)");
+    else if ((target.nti.nai.abtUid[0]&0x0F) == 0x0F)
+      printf(" (FNUID)");
+    else if (target.nti.nai.abtUid[0] == 0x88)
+      printf(" (cascade)");
+    else if (target.nti.nai.abtUid[0] == 0xF8)
+      printf(" (RFU)");
+  }
+
   printf("\n   Manufacturer: %s\n   Type: %s\n", c->mfc, c->name);
 
   if( target.nti.nai.btSak & 0x08 ) {
     printf("   Mifare compatible: yes\n");
-    if( target.nti.nai.abtAtqa[1] & 0x02 ) { // 4K
+    if( target.nti.nai.abtAtqa[1] & 0x02 ) {
       printf("   Size: 4K\n");
       settings.size = "4K";
     }
-    else if( target.nti.nai.abtAtqa[1] & 0x04 ) { // 1K
+    else if( target.nti.nai.abtAtqa[1] & 0x04 ) {
       printf("   Size: 1K\n");
       settings.size = "1K";
     }
@@ -766,7 +778,7 @@ int mf_ident_tag()
     }
   }
 
-  printf("   GEN2: %s\n", mf_gen1_unlock() ? "yes" : "no");
+  printf("   GEN1: %s\n", mf_gen1_unlock() ? "yes" : "no");
 
   return mf_disconnect(0);
 }
