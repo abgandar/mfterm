@@ -48,6 +48,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #include <nfc/nfc.h>
 #include "config.h"
 #include "mifare.h"
@@ -98,6 +99,7 @@ static const card_ident_t cards[] = {
 };
 
 
+int mf_connect_internal();
 int mf_connect();
 int mf_disconnect(int ret_state);
 bool mf_configure_device();
@@ -112,6 +114,21 @@ bool mf_test_auth_internal(const mf_tag_t* keys, size_t size1, size_t size2, mf_
 bool transmit_bits(const uint8_t *pbtTx, const size_t szTxBits);
 bool transmit_bytes(const uint8_t *pbtTx, const size_t szTx);
 
+void mf_signal_handler(int sig)
+{
+  static time_t last = 0;
+  time_t curr = time(NULL);
+  if (sig == SIGINT) {
+    if (device) {
+      mf_disconnect(0);
+    }
+    if(curr <= last+1) {
+      exit(EXIT_FAILURE);
+    }
+    last = curr;
+  }
+}
+
 int mf_disconnect(int ret_state) {
   nfc_abort_command(device);
   nfc_close(device);
@@ -121,7 +138,7 @@ int mf_disconnect(int ret_state) {
   return ret_state;
 }
 
-int mf_connect() {
+int mf_connect_internal() {
   // Initialize libnfc and set the nfc_context
   nfc_init(&context);
 
@@ -145,6 +162,13 @@ int mf_connect() {
     return mf_disconnect(-1);
   }
 
+  return 0;
+}
+
+int mf_connect() {
+  const int res = mf_connect_internal();
+  if (res != 0) return res;
+
   // Allow SAK & ATQA == 0. Assume 1k pirate card.
   if (target.nti.nai.btSak == 0 && target.nti.nai.abtAtqa[1] == 0) {
     size = MF_1K;
@@ -153,21 +177,19 @@ int mf_connect() {
 
   // Test if we are dealing with a Mifare Classic compatible tag
   if ((target.nti.nai.btSak & 0x08) == 0) {
-    printf("Incompatible tag type: 0x%02x (i.e. not Mifare Classic).\n",
-           target.nti.nai.btSak);
+    printf("Incompatible tag type: 0x%02x (i.e. not Mifare Classic).\n", target.nti.nai.btSak);
     return mf_disconnect(-1);
   }
 
   // Guessing tag size
-  if ((target.nti.nai.abtAtqa[1] & 0x02)) { // 4K
+  if ((target.nti.nai.abtAtqa[1] & 0x02)) {
     size = MF_4K;
   }
-  else if ((target.nti.nai.abtAtqa[1] & 0x04)) { // 1K
+  else if ((target.nti.nai.abtAtqa[1] & 0x04)) {
     size = MF_1K;
   }
   else {
-    printf("Unsupported tag size. ATQA 0x%02x 0x%02x (i.e. not [1|4]K.)\n",
-           target.nti.nai.abtAtqa[0], target.nti.nai.abtAtqa[1]);
+    printf("Unsupported tag size. ATQA 0x%02x 0x%02x (i.e. not [1|4]K.)\n", target.nti.nai.abtAtqa[0], target.nti.nai.abtAtqa[1]);
     return mf_disconnect(-1);
   }
 
@@ -178,14 +200,14 @@ int mf_devices() {
   nfc_connstring devs[8];
 
   nfc_init(&context);
-  size_t n = nfc_list_devices( context, devs, 0 );
-  if(n == 0) {
+  size_t n = nfc_list_devices(context, devs, 0);
+  if (n == 0) {
     printf("No devices found.\n");
     nfc_exit(context);
     return -1;
   }
   printf("%u devices found:\n", (unsigned int)n);
-  for( size_t i = 0; i < n; i++ )
+  for (size_t i = 0; i < n; i++)
     printf("%s\n", devs[i]);
 
   nfc_exit(context);
@@ -728,8 +750,13 @@ bool mf_authenticate(size_t block, const uint8_t* key, mf_key_type_t key_type) {
 // print public card information
 int mf_ident_tag()
 {
-  if(mf_connect())
+  if(mf_connect_internal())
     return -1;
+
+  char* str;
+  str_nfc_target(&str, &target, true);
+  printf("%s\n", str);
+  nfc_free(str);
 
   const card_ident_t* c;
   uint8_t id[32];

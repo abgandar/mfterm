@@ -41,6 +41,10 @@ extern settings_t settings;
 // print list of all available NFC devices
 int mf_devices();
 
+// signal handler to abort current operation on interrupt
+void mf_signal_handler(int sig);
+
+
 /**
  * Connect to an nfc device. Then read the tag data, authenticating with the
  * 'current_auth' keys of specified type, and store it in the

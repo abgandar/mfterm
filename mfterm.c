@@ -24,11 +24,13 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
+#include <signal.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <getopt.h>
 #include <nfc/nfc.h>
 #include "mfterm.h"
+#include "mifare_ctrl.h"
 #include "term_cmd.h"
 #include "tag.h"
 #include "util.h"
@@ -36,7 +38,7 @@
 
 #include "config.h"
 
-int stop_input_loop_ = 0;
+static int stop_input_loop_ = 0;
 void stop_input_loop() {
   stop_input_loop_ = 1;
 }
@@ -54,11 +56,11 @@ void parse_cmdline(int argc, char** argv);
 void print_help();
 void print_version();
 
-//typedef char** rl_completion_func_t(const char*, int, int);
-
 int main(int argc, char** argv) {
   parse_cmdline(argc, argv);
   initialize_readline();
+  struct sigaction act = { .sa_handler = &mf_signal_handler };
+  sigaction(SIGINT, &act, NULL);
   reset_tag(&current_tag);
   input_loop();
   free_readline();
