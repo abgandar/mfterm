@@ -118,7 +118,7 @@ void parse_cmdline(int argc, char** argv) {
 
 // Request user input until stop_intput_loop_ == 0
 void input_loop() {
-  char *line, *s;
+  char *line, *s, *p = NULL;
   while (stop_input_loop_ == 0) {
     line = readline ("$ ");
 
@@ -128,11 +128,16 @@ void input_loop() {
     s = trim(line);
 
     if (*s) {
-      add_history(s);
+      if (!p || strcmp(s, p) != 0) {
+        add_history(s);
+      }
       execute_line(s);
+      if(p) free(p);
+      p = strdup(s);
     }
-    free (line);
+    free(line);
   }
+  if(p) free(p);
 }
 
 /* Execute a command line. */
