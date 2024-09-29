@@ -3,6 +3,7 @@
 
 /**
  * Copyright (C) 2011 Anders Sundman <anders@4zm.org>
+ * Copyright (C) 2024 Alexander Wittig <abgandar@gmail.com>
  *
  * This file is part of mfterm.
  *
@@ -39,7 +40,7 @@ typedef enum {
   MF_KEY_UNLOCKED = '*'
 } mf_key_type_t;
 
-// Convenience typedefs (shortening)
+// Convenience typedefs
 typedef mifare_classic_tag mf_tag_t;
 typedef mifare_classic_block mf_block_t;
 

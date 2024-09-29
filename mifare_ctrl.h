@@ -3,6 +3,7 @@
 
 /**
  * Copyright (C) 2011 Anders Sundman <anders@4zm.org>
+ * Copyright (C) 2024 Alexander Wittig <abgandar@gmail.com>
  *
  * This file is part of mfterm.
  *
@@ -19,8 +20,6 @@
  * You should have received a copy of the GNU General Public License
  * along with mfterm.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Parts of code used in this file are from the GNU readline library file
- * fileman.c (GPLv3). Copyright (C) 1987-2009 Free Software Foundation, Inc
  */
 
 #include <nfc/nfc-types.h>
@@ -43,7 +42,6 @@ int mf_devices();
 
 // signal handler to abort current operation on interrupt
 void mf_signal_handler(int sig);
-
 
 /**
  * Connect to an nfc device. Then read the tag data, authenticating with the

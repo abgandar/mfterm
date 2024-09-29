@@ -1,5 +1,6 @@
 /**
  * Copyright (C) 2011 Anders Sundman <anders@4zm.org>
+ * Copyright (C) 2024 Alexander Wittig <abgandar@gmail.com>
  *
  * This file is part of mfterm.
  *
@@ -98,7 +99,6 @@ static const card_ident_t cards[] = {
   { "Unknown",    "Unknown",             "", 0 }
 };
 
-
 int mf_connect_internal();
 int mf_connect();
 int mf_disconnect(int ret_state);
@@ -110,7 +110,6 @@ bool mf_read_blocks_internal(mf_tag_t* tag, const mf_tag_t* keys, mf_key_type_t 
 bool mf_write_blocks_internal(const mf_tag_t* tag, const mf_tag_t* keys, mf_key_type_t key_type, size_t a, size_t b);
 bool mf_dictionary_attack_internal(mf_tag_t* tag);
 bool mf_test_auth_internal(const mf_tag_t* keys, size_t size1, size_t size2, mf_key_type_t key_type);
-
 bool transmit_bits(const uint8_t *pbtTx, const size_t szTxBits);
 bool transmit_bytes(const uint8_t *pbtTx, const size_t szTx);
 
@@ -122,7 +121,7 @@ void mf_signal_handler(int sig)
     if (device) {
       mf_disconnect(0);
     }
-    if(curr <= last+1) {
+    if(curr-last <= 1) {
       exit(EXIT_FAILURE);
     }
     last = curr;
@@ -478,7 +477,7 @@ int mf_gen3_lock() {
   if (!transmit_bytes (abtLock, 5))
     return mf_disconnect(-1);
 
-  printf("Card permanently locked\n");
+  printf("Block 0 permanently locked\n");
 
   // Reset reader configuration. CRC and easy framing. Not really needed as we disconnect right away.
   if (nfc_device_set_property_bool (device, NP_EASY_FRAMING, true) < 0)
@@ -493,7 +492,7 @@ bool mf_read_blocks_internal(mf_tag_t* tag, const mf_tag_t* keys, mf_key_type_t 
 
   if( b >= block_count(size) ) {
     b = block_count(size)-1;
-    printf("Truncating read to tag size.");
+    printf("\nTruncating read to tag size.\n");
   }
 
   printf("Reading: ["); fflush(stdout);
@@ -569,13 +568,13 @@ bool mf_write_blocks_internal(const mf_tag_t* tag, const mf_tag_t* keys, mf_key_
   if (a == 0 &&
      (tag->amb[0].mbd.abtData[0] ^ tag->amb[0].mbd.abtData[1] ^ tag->amb[0].mbd.abtData[2] ^
       tag->amb[0].mbd.abtData[3] ^ tag->amb[0].mbd.abtData[4]) != 0x00) {
-    printf ("\nError: incorrect BCC in block 0!\n"); // ADD DATA
+    printf ("\nError: incorrect BCC in block 0! Use check/fix commands to fix.\n");
     return false;
   }
 
   if( b >= block_count(size) ) {
     b = block_count(size)-1;
-    printf("Truncating write to tag size.");
+    printf("\nTruncating write to tag size.\n");
   }
 
   printf("Writing ["); fflush(stdout);
@@ -585,12 +584,6 @@ bool mf_write_blocks_internal(const mf_tag_t* tag, const mf_tag_t* keys, mf_key_
     if (is_header_block(block)) {
       printf("%02zx", block_to_sector(block)); fflush(stdout);
     }
-
-    // skip block 0 (read-only)
-//    if (block == 0 && key_type != MF_KEY_UNLOCKED ) {
-//      printf(" "); fflush(stdout);
-//      continue;
-//    }
 
     // prepare data to write
     memcpy (mp.mpd.abtData, tag->amb[block].mbd.abtData, 0x10);

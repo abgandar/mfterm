@@ -1,5 +1,6 @@
 /**
  * Copyright (C) 2011-2013 Anders Sundman <anders@4zm.org>
+ * Copyright (C) 2024 Alexander Wittig <abgandar@gmail.com>
  *
  * This file is part of mfterm.
  *
@@ -57,11 +58,12 @@ void print_help();
 void print_version();
 
 int main(int argc, char** argv) {
-  parse_cmdline(argc, argv);
-  initialize_readline();
   struct sigaction act = { .sa_handler = &mf_signal_handler };
   sigaction(SIGINT, &act, NULL);
+  parse_cmdline(argc, argv);
+  initialize_readline();
   reset_tag(&current_tag);
+  reset_tag(&current_auth);
   input_loop();
   free_readline();
   return 0;
@@ -83,23 +85,22 @@ void parse_cmdline(int argc, char** argv) {
 
   int opt = 0;
   int long_index = 0;
-  while ((opt = getopt_long(argc, argv,"hvt:k:d:",
-			    long_options, &long_index )) != -1) {
+  while ((opt = getopt_long(argc, argv,"hvt:k:d:", long_options, &long_index )) != -1) {
     switch (opt) {
-    case 'h' :
-      print_help();
-      exit(0);
-    case 'v' :
-      print_version();
-      exit(0);
-    case 't' : tag_file = optarg;
-      break;
-    case 'k' : keys_file = optarg;
-      break;
-    case 'd' : dict_file = optarg;
-      break;
-    default :
-      exit(1);
+      case 'h' :
+        print_help();
+        exit(0);
+      case 'v' :
+        print_version();
+        exit(0);
+      case 't' : tag_file = optarg;
+        break;
+      case 'k' : keys_file = optarg;
+        break;
+      case 'd' : dict_file = optarg;
+        break;
+      default :
+        exit(1);
     }
   }
 
@@ -167,8 +168,8 @@ void initialize_readline()
   rl_attempted_completion_function = (rl_completion_func_t*)mft_completion;
   using_history();
   // read history file
-  char* home = getenv("HOME");
-  char* histfile = ".mfterm_history";
+  const char* home = getenv("HOME");
+  const char* histfile = ".mfterm_history";
   char* fn;
   if( home ) {
     fn = malloc(strlen(home)+strlen(histfile)+2);
@@ -185,8 +186,8 @@ void initialize_readline()
 
 void free_readline()
 {
-  char* home = getenv("HOME");
-  char* histfile = ".mfterm_history";
+  const char* home = getenv("HOME");
+  const char* histfile = ".mfterm_history";
   char* fn;
   if( home ) {
     fn = malloc(strlen(home)+strlen(histfile)+2);
@@ -201,10 +202,10 @@ void free_readline()
   free(fn);
 }
 
-/* Attempt to complete on the contents of TEXT.  START and END bound the
-   region of rl_line_buffer that contains the word to complete.  TEXT is
-   the word to complete.  We can use the entire contents of rl_line_buffer
-   in case we want to do some simple parsing.  Return the array of matches,
+/* Attempt to complete on the contents of TEXT. START and END bound the
+   region of rl_line_buffer that contains the word to complete. TEXT is
+   the word to complete. We can use the entire contents of rl_line_buffer
+   in case we want to do some simple parsing. Return the array of matches,
    or NULL if there aren't any. */
 char** mft_completion(char* text, int start, int end) {
   char **matches = (char **)NULL;
@@ -247,9 +248,7 @@ char** mft_completion(char* text, int start, int end) {
 
 int perform_filename_completion() {
   for (int i = 0; commands[i].name; ++i) {
-    if (commands[i].fn_arg &&
-        strncmp(rl_line_buffer, commands[i].name,
-                strlen(commands[i].name)) == 0) {
+    if (commands[i].fn_arg && strncmp(rl_line_buffer, commands[i].name, strlen(commands[i].name)) == 0) {
       return 1;
     }
   }
@@ -363,8 +362,7 @@ char* completion_spec_generator(const char* text, int state) {
     size_t fname_len = strlen(fname);
 
     // Check if the field is applicable - right prefix
-    if (fname_len >= parent_end_len &&
-        strncmp(fname, parent_end, parent_end_len) == 0) {
+    if (fname_len >= parent_end_len && strncmp(fname, parent_end, parent_end_len) == 0) {
 
       if (parent_end - text <= 0)
         return NULL;
@@ -399,13 +397,13 @@ void print_help() {
   printf("  --keys=keyfile  (-k)   Load keys from the specified file.\n");
   printf("  --dict=dictfile (-d)   Load dictionary from the specified file.\n");
   printf("\n");
-  printf("Report bugs to: anders@4zm.org\n");
-  printf(PACKAGE_NAME); printf(" home page: <https://github.com/4zm/mfterm>\n");
+  printf(PACKAGE_NAME); printf(" home page: <https://github.com/abgandar/mfterm>\n");
 }
 
 void print_version() {
   printf(PACKAGE_STRING "\n");
   printf("Copyright (C) 2011-2013 Anders Sundman <anders@4zm.org>\n");
+  printf("Copyright (C) 2024 Alexander Wittig <abgandar@gmal.com>\n");
   printf("License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n");
   printf("This is free software: you are free to change and redistribute it.\n");
   printf("There is NO WARRANTY, to the extent permitted by law.\n");

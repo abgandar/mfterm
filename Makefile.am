@@ -1,4 +1,5 @@
 # Copyright (C) 2012 Anders Sundman <anders@4zm.org>
+# Copyright (C) 2024 Alexander Wittig <abgandar@gmail.com>
 #
 # This file is part of mfterm.
 #
