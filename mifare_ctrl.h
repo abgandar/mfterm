@@ -96,4 +96,6 @@ int mf_gen3_lock();
 int mf_ident_tag();
 
 int mf_version();
+
+int mf_write_mod(const mf_tag_t* tag, const mf_tag_t* keys);
 #endif

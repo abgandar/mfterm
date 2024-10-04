@@ -56,6 +56,7 @@ command_t commands[] = {
   { "read block",   com_read_block,    0, 1, "#sector: Read block from a physical tag" },
   { "write!",       com_write_sector,  0, 1, "#sector: Write sector to a physical tag" },
   { "write! block", com_write_block,   0, 1, "#block: Write block to a physical tag" },
+  { "write! mod",   com_write_mod,     0, 1, "Write load modulation strength to a physical tag" },
 
   { "gen1 wipe!",   com_gen1_wipe,     0, 1, "On GEN1 cards, wipe entire card without keys" },
 
@@ -76,6 +77,7 @@ command_t commands[] = {
   { "put uid",      com_put_uid,       0, 1, "xx xx xx xx [xx xx xx]: Set tag UID" },
   { "put key",      com_put_key,       0, 1, "#sector A|B|AB xxxxxxxxxxxx: Set tag sector key" },
   { "put perm",     com_put_perm,      0, 1, "#block C1C2C3: Set tag block permissions" },
+  { "put mod",      com_put_mod,       0, 1, "1|0: Set load modulation strength (1=strong, 0=normal)" },
 
   { "set",          com_set,           0, 1, "Print current settings" },
   { "set auth",     com_set_auth,      0, 1, "A|B|AB|*: Set keys for authentication (* = gen1 unlock)" },
@@ -378,6 +380,18 @@ int com_write_sector(char* arg) {
 
   // Issue the read request
   mf_write_blocks(&current_tag, parse_key_type(settings.auth, NULL), s1, s2);
+  return 0;
+}
+
+int com_write_mod(char* arg) {
+  char* a = strtok(arg, " ");
+
+  if (a && strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  mf_write_mod(&current_tag, &current_auth);
   return 0;
 }
 
@@ -736,6 +750,33 @@ int com_put_uid(char* arg) {
 
   // Write data to tag
   memcpy( current_tag.amb[0].mbd.abtData, uid, i );
+
+  return 0;
+}
+
+int com_put_mod(char* arg) {
+  char* mod_str = strtok(arg, " ");
+
+  // Parse modulation strength string
+  if (mod_str == (char*)NULL) {
+    printf("Missing load modulation strength [0,1]\n");
+    return -1;
+  }
+
+  long int val = strtol(mod_str, &mod_str, 16);
+
+  if (val < 0 || val > 1 || *mod_str != '\0') {
+    printf("Invalid load modulation strength [0,1]: %lx\n", val);
+    return -1;
+  }
+
+  if (strtok(NULL, " ") != NULL) {
+    printf("Expected exactly 1 argument\n");
+    return -1;
+  }
+
+  // Write data to tag
+  current_tag.amb[0].mbd.abtData[11] = val ? 0x20 : 0x00;
 
   return 0;
 }

@@ -54,6 +54,7 @@ int com_read_block(char* arg);
 int com_read_sector(char* arg);
 int com_write_block(char* arg);
 int com_write_sector(char* arg);
+int com_write_mod(char* arg);
 
 // Ident card
 int com_ident(char* arg);
@@ -71,6 +72,7 @@ int com_put(char* arg);
 int com_put_uid(char* arg);
 int com_put_key(char* arg);
 int com_put_perm(char* arg);
+int com_put_mod(char* arg);
 
 // setting functions
 int com_set(char* arg);

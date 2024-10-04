@@ -635,6 +635,41 @@ bool mf_write_blocks_internal(const mf_tag_t* tag, const mf_tag_t* keys, mf_key_
   return true;
 }
 
+int mf_write_mod(const mf_tag_t* tag, const mf_tag_t* keys) {
+  // Special set UID command
+  uint8_t abtSET_MOD_TYPE[] = { 0x43, 0x00, 0x00, 0x00 };
+
+  if (mf_connect())
+    return -1; // No need to disconnect here
+
+  // authenticate for sector 0 with key A (needed for EV1 cards)
+  const uint8_t* key = key_from_tag(keys, MF_KEY_A, 0);
+  if (!mf_authenticate(0, key, MF_KEY_A))
+    return mf_disconnect(-1);
+
+  // Disable CRC and parity checking
+  if (nfc_device_set_property_bool(device, NP_HANDLE_CRC, false) < 0)
+    return mf_disconnect(-1);
+
+  // Disable easy framing. Use raw send/receive methods
+  if (nfc_device_set_property_bool (device, NP_EASY_FRAMING, false) < 0)
+    return mf_disconnect(-1);
+
+  // Initialize transmision
+  abtSET_MOD_TYPE[1] = tag->amb[0].mbd.abtData[11] == 0x20 ? 0x01 : 0x00;
+  iso14443a_crc_append(abtSET_MOD_TYPE, 2);
+  if (!transmit_bytes(abtSET_MOD_TYPE, 4))
+    return mf_disconnect(-1);
+
+  // Reset reader configuration. CRC and easy framing.
+  if (nfc_device_set_property_bool (device, NP_HANDLE_CRC, true) < 0)
+    return mf_disconnect(-1);
+  if (nfc_device_set_property_bool (device, NP_EASY_FRAMING, true) < 0)
+    return mf_disconnect(-1);
+
+  return mf_disconnect(0);
+}
+
 bool mf_dictionary_attack_internal(mf_tag_t* tag) {
   int all_keys_found = 1;
 
@@ -759,14 +794,15 @@ int mf_ident_tag()
   memcpy(id+3, target.nti.nai.abtAts, sizeof(id)-3);
   for( c = cards; c->len > 0 && memcmp(id, c->id, c->len) != 0; c++ );
 
-  printf("ATQA: %02x %02x  SAK: %02x", target.nti.nai.abtAtqa[0], target.nti.nai.abtAtqa[1], target.nti.nai.btSak);
+  printf("MFTerm identification:\nATQA: %02x %02x  SAK: %02x\n", target.nti.nai.abtAtqa[0], target.nti.nai.abtAtqa[1], target.nti.nai.btSak);
   if( target.nti.nai.szAtsLen > 0 ) {
-    printf("  ATS:");
+    printf("ATS:");
     for( size_t i = 0; i < target.nti.nai.szAtsLen; i++ )
       printf(" %02x", target.nti.nai.abtAts[i]);
+    printf("\n");
   }
 
-  printf("  UID:");
+  printf("UID:");
   for( size_t i = 0; i < target.nti.nai.szUidLen; i++ )
     printf(" %02x", target.nti.nai.abtUid[i]);
   if (target.nti.nai.szUidLen == 4) {
@@ -783,7 +819,7 @@ int mf_ident_tag()
   printf("\n   Manufacturer: %s\n   Type: %s\n", c->mfc, c->name);
 
   if( target.nti.nai.btSak & 0x08 ) {
-    printf("   Mifare compatible: yes\n");
+    printf("   Mifare Classic: yes\n");
     if( target.nti.nai.abtAtqa[1] & 0x02 ) {
       printf("   Size: 4K\n");
       settings.size = "4K";
@@ -796,6 +832,8 @@ int mf_ident_tag()
       printf("   Size: unknown\n");
       settings.size = "";
     }
+  } else {
+    printf("   Mifare Classic: no\n");
   }
 
   printf("   GEN1: %s\n", mf_gen1_unlock() ? "yes" : "no");
