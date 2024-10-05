@@ -34,7 +34,20 @@
 #include "util.h"
 #include "mac.h"
 
-command_t commands[] = {
+const aid_t AIDs[] = {
+  {"NDEF",      0xe103},
+  {"FREE",      0x0000},
+  {"DEFECT",    0x0001},
+  {"RESERVED",  0x0002},
+  {"RES",       0x0002},    // alias
+  {"DIRECTORY", 0x0003},
+  {"DIR",       0x0003},    // alias
+  {"INFO",      0x0004},
+  {"UNUSED",    0x0005},
+  {NULL,        0x0000}
+};
+
+const command_t commands[] = {
   { "help",         com_help,          0, 0, "Display this text" },
   { "?",            com_help,          0, 0, "Synonym for 'help'" },
   { "version",      com_version,       0, 1, "Show version information" },
@@ -142,8 +155,8 @@ int com_mac_block_compute_impl(char* arg, int update);
 
 /* Look up NAME as the name of a command, and return a pointer to that
    command.  Return a NULL pointer if NAME isn't a command name. */
-command_t* find_command(const char *name) {
-  command_t* cmd = NULL;
+const command_t* find_command(const char *name) {
+  const command_t* cmd = NULL;
   size_t cmd_len = 0;
 
   for (size_t i = 0; commands[i].name; ++i) {
@@ -400,7 +413,9 @@ int com_write_mod(char* arg) {
     return -1;
   }
 
-  mf_write_mod(&current_tag, &current_auth);
+  if (mf_write_mod(&current_tag, &current_auth) == 0)
+    printf("Load modulation set.\n");
+
   return 0;
 }
 
@@ -864,10 +879,9 @@ int com_put_ndef(char* arg) {
   switch (type) {
     case 'U':
       ndef_URI_record((char*)bytes, &ndef, &size);
-      break;
-
+      break
     case 'T':
-      //ndef_text_record(bytes, &ndef, &size);
+      ndef_text_record("en-en", (char*)bytes, &ndef, &size);
       break;
   };
 
@@ -887,17 +901,16 @@ int com_mad(char* arg) {
 int com_mad_size(char* arg) {
   char* a = strtok(arg, " ");
 
-  if (!a) {
-    printf("Too few arguments: 1K|4K\n");
-    return -1;
-  }
-
   if (strtok(NULL, " ") != (char*)NULL) {
     printf("Too many arguments\n");
     return -1;
   }
 
-  mf_size_t s = parse_size(a, NULL);
+  mf_size_t s = parse_size(a, settings.size);
+  if (s == MF_INVALID_SIZE) {
+    printf("Invalid size: %s\n", a ? a : settings.size);
+    return -1;
+  }
   return mad_size(&current_tag, s);
 }
 
@@ -906,7 +919,9 @@ int com_mad_put(char* arg) {
   char* aid_str = strtok(NULL, " ");
 
   if (!sector_str || !aid_str) {
-    printf("Too few arguments: #sector aid\n");
+    printf("Too few arguments: #sector AID\n   AID name  value\n");
+    for (const aid_t* aid = AIDs; aid->name; aid++)
+      printf(" %10s  0x%04hX\n", aid->name, aid->val);
     return -1;
   }
 
@@ -920,14 +935,24 @@ int com_mad_put(char* arg) {
     return -1;
   }
 
-  long aid = strtol(aid_str, &aid_str, 0);
-  if (*aid_str != '\0' || aid < 0 || aid > 0xFFFF) {
-    printf("Invalid AID: %s\n", aid_str);
-    return -1;
+  // parse AID
+  long aidval = -1;
+  for (const aid_t* aid = AIDs; aid->name; aid++) {
+    if (strcasecmp(aid->name, aid_str) == 0) {
+      aidval = aid->val;
+      break;
+    }
+  }
+  if (aidval == -1) {
+    aidval = strtol(aid_str, &aid_str, 0);
+    if (*aid_str != '\0' || aidval < 0 || aidval > 0xFFFF) {
+      printf("Invalid AID: %s\n", aid_str);
+      return -1;
+    }
   }
 
   for (size_t s = sector1; s <= sector2; s++)
-    mad_put_aid(&current_tag, s, (uint16_t)aid);
+    mad_put_aid(&current_tag, s, (uint16_t)aidval);
 
   return 0;
 }
@@ -957,17 +982,16 @@ int com_mad_info(char* arg) {
 int com_mad_init(char* arg) {
   char* a = strtok(arg, " ");
 
-  if (!a) {
-    printf("Too few arguments: 1K|4K\n");
-    return -1;
-  }
-
   if (strtok(NULL, " ") != (char*)NULL) {
     printf("Too many arguments\n");
     return -1;
   }
 
   mf_size_t s = parse_size(a, settings.size);
+  if (s == MF_INVALID_SIZE) {
+    printf("Invalid size: %s\n", a ? a : settings.size);
+    return -1;
+  }
   return mad_init(&current_tag, s);
 }
 

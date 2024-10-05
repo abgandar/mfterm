@@ -126,6 +126,13 @@ int com_mac_block_update(char* arg);
 int com_mac_validate(char* arg);
 
 typedef struct {
+ char* name;
+ uint16_t val;
+} aid_t;
+
+extern const aid_t AIDs[];
+
+typedef struct {
   char *name;       // The command
   cmd_func_t func;  // Function to call on command
   int fn_arg;       // File name completion if > 0
@@ -133,11 +140,11 @@ typedef struct {
   char *doc;        // String documenting the command
 } command_t;
 
-extern command_t commands[];
+extern const command_t commands[];
 
 // Lookup a command by name. Return a ptr to the command function, or
 // NULL if the command isn't found.
-command_t* find_command(const char *name);
+const command_t* find_command(const char *name);
 
 // Any command starting with '.' - path spec
 int exec_path_command(const char *line);

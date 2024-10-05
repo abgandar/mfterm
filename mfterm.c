@@ -148,7 +148,7 @@ int execute_line (char* line) {
   if (strncmp(line, ".", 1) == 0)
     return exec_path_command(line);
 
-  command_t* command = find_command(line);
+  const command_t* command = find_command(line);
 
   if (!command) {
     fprintf (stderr, "%s: No such command.\n", line);

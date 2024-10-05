@@ -50,6 +50,29 @@ extern mf_tag_t current_tag;
 // The ACL + keys used for authentication
 extern mf_tag_t current_auth;
 
+// NDEF flags
+typedef enum {
+  TNF_EMPTY = 0x00,
+  TNF_WELL_KNOWN = 0x01,
+  TNF_MIME = 0x02,
+  TNF_URI = 0x03,
+  TNF_EXTERNAL = 0x04,
+  TNF_UNKNOWN = 0x05,
+  TNF_UNCHANGED = 0x06,
+  TNF_RESERVED = 0x07,
+  NDEF_IL = 0x08,
+  NDEF_SR = 0x10,
+  NDEF_CF = 0x20,
+  NDEF_ME = 0x40,
+  NDEF_MB = 0x80
+} NDEF_flags;
+
+// NDEF well known types
+typedef enum {
+  NDEF_TEXT = 'T',
+  NDEF_URI = 'U'
+} NDEF_wkt;
+
 // Load/Save tag or keys from file
 int load_tag(const char* fn);
 int load_auth(const char* fn);
@@ -122,14 +145,16 @@ void set_ac(mf_tag_t* tag, size_t block, uint32_t c1, uint32_t c2, uint32_t c3);
 
 void check_tag(mf_tag_t* tag, bool fix);
 
+// NDEF functions
 int ndef_put_sectors(mf_tag_t* tag, size_t s1, size_t s2, const uint8_t* ndef, const size_t size);
 int ndef_URI_record(const char* uri, uint8_t** ndef, size_t* size);
+int ndef_text_record(const char* lang, const char* text, uint8_t** ndef, size_t* size);
 
+// MAD functions
 int mad_crc(mf_tag_t* tag);
 int mad_set_info(mf_tag_t* tag, size_t sector);
 int mad_put_aid(mf_tag_t* tag, size_t sector, uint16_t aid);
 int mad_init(mf_tag_t* tag, mf_size_t size);
 int mad_size(mf_tag_t* tag, mf_size_t size);
-
 
 #endif
