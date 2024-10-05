@@ -72,12 +72,21 @@ command_t commands[] = {
   { "print block",  com_print_blocks,  0, 1, "#block: Print tag block data" },
   { "print keys",   com_print_keys,    0, 1, "#sector: Print tag sector keys" },
   { "print perm",   com_print_perm,    0, 1, "#sector: Print tag sector permissions" },
+//  { "print ndef",   com_print_ndef,    0, 1, "#sector: Print tag sector NDEF record(s)" },
+  { "print mad",    com_mad,           0, 1, "Print tag mad" },
 
   { "put",          com_put,           0, 1, "#block #offset xx xx xx|\"ASCII\": Set tag block data" },
   { "put uid",      com_put_uid,       0, 1, "xx xx xx xx [xx xx xx]: Set tag UID" },
   { "put key",      com_put_key,       0, 1, "#sector A|B|AB xxxxxxxxxxxx: Set tag sector key" },
   { "put perm",     com_put_perm,      0, 1, "#block C1C2C3: Set tag block permissions" },
   { "put mod",      com_put_mod,       0, 1, "1|0: Set load modulation strength (1=strong, 0=normal)" },
+  { "put ndef",     com_put_ndef,      0, 1, "#sector (U|T) \"ASCII\": Place NDEF records in sector(s)" },
+
+  { "mad",          com_mad,           0, 1, "Print tag MAD" },
+  { "mad size",     com_mad_size,      0, 1, "1K|4K: Set tag MAD size/version (v1=1K, v2=4K)" },
+  { "mad put",      com_mad_put,       0, 1, "#sector aid: Set 16-bit AID for given sector(s)" },
+  { "mad init",     com_mad_init,      0, 1, "1K|4K: Initialize tag MAD (v1=1K, v2=4K)" },
+  { "mad crc",      com_mad_crc,       0, 1, "Update tag MAD CRC" },
 
   { "set",          com_set,           0, 1, "Print current settings" },
   { "set auth",     com_set_auth,      0, 1, "A|B|AB|*: Set keys for authentication (* = gen1 unlock)" },
@@ -779,6 +788,198 @@ int com_put_mod(char* arg) {
   current_tag.amb[0].mbd.abtData[11] = val ? 0x20 : 0x00;
 
   return 0;
+}
+
+int com_put_ndef(char* arg) {
+  char* sector_str = strtok(arg, " ");
+  char* type_str = strtok(NULL, " ");
+  char* arg_str = strtok(NULL, "");   // remainder of string
+
+  if (!sector_str || !type_str || !arg_str) {
+    printf("Too few arguments: #sector (T|U) \"ASCII\"\n");
+    return -1;
+  }
+
+  size_t sector1, sector2;
+  if( parse_sectors( sector_str, &sector1, &sector2, settings.size ) != 0 ) {
+    printf("Invalid sector range: %s\n", sector_str);
+    return -1;
+  }
+  if (sector2 > 0x27 || sector1 > sector2) {
+    printf("Invalid sector range: %lu - %lu\n", sector1, sector2);
+    return -1;
+  }
+
+  uint8_t type = (uint8_t)*type_str;
+  if (type_str[1] != '\0' || (type != 'U' && type != 'T')) {
+    printf("Invalid type (U|T): %s\n", type_str);
+    return -1;
+  }
+
+  // Consume ASCII string
+  if( *arg_str != '"' ) {
+    printf("Payload data must be enclosed in quotes.\n");
+    return -1;
+  }
+
+  uint8_t bytes[4096];
+  uint8_t* b = bytes;
+  size_t count = 0;
+  arg_str++;
+  int escape = 0;
+  do {
+    if( !escape && *arg_str == '"' ) {
+      break;
+    }
+    if( !escape && *arg_str == '\\' ) {
+      escape = 1;
+      arg_str++;
+      continue;
+    }
+
+    // store value
+    if (count >= sizeof(bytes)) {
+      printf("Data string too long.\n");
+      return -1;
+    }
+    *b++ = (uint8_t)*arg_str++;
+    count++;
+    escape = 0;
+  } while(*arg_str != '\0');
+  *b = '\0';
+
+  if(*arg_str != '"') {
+    printf("Unterminated string.\n");
+    return -1;
+  }
+
+  if (count == 0) {
+    printf("No data specified.\n");
+    return -1;
+  }
+
+  // Obtain NDEF record
+  uint8_t* ndef = NULL;
+  size_t size = 0;
+  switch (type) {
+    case 'U':
+      ndef_URI_record((char*)bytes, &ndef, &size);
+      break;
+
+    case 'T':
+      //ndef_text_record(bytes, &ndef, &size);
+      break;
+  };
+
+  // Write to given sectors
+  if (ndef)
+    return ndef_put_sectors(&current_tag, sector1, sector2, ndef, size);
+
+  return 0;
+}
+
+// MAD functions
+int com_mad(char* arg) {
+  //return mad_print(&current_tag);
+  return -1;
+}
+
+int com_mad_size(char* arg) {
+  char* a = strtok(arg, " ");
+
+  if (!a) {
+    printf("Too few arguments: 1K|4K\n");
+    return -1;
+  }
+
+  if (strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  mf_size_t s = parse_size(a, NULL);
+  return mad_size(&current_tag, s);
+}
+
+int com_mad_put(char* arg) {
+  char* sector_str = strtok(arg, " ");
+  char* aid_str = strtok(NULL, " ");
+
+  if (!sector_str || !aid_str) {
+    printf("Too few arguments: #sector aid\n");
+    return -1;
+  }
+
+  size_t sector1, sector2;
+  if( parse_sectors( sector_str, &sector1, &sector2, NULL ) != 0 ) {
+    printf("Invalid sector range: %s\n", sector_str);
+    return -1;
+  }
+  if (sector2 > 0x27 || sector1 > sector2) {
+    printf("Invalid sector range: %lu - %lu\n", sector1, sector2);
+    return -1;
+  }
+
+  long aid = strtol(aid_str, &aid_str, 0);
+  if (*aid_str != '\0' || aid < 0 || aid > 0xFFFF) {
+    printf("Invalid AID: %s\n", aid_str);
+    return -1;
+  }
+
+  for (size_t s = sector1; s <= sector2; s++)
+    mad_put_aid(&current_tag, s, (uint16_t)aid);
+
+  return 0;
+}
+
+int com_mad_info(char* arg) {
+  char* a = strtok(arg, " ");
+
+  if (!a) {
+    printf("Too few arguments: #sector\n");
+    return -1;
+  }
+
+  if (strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  long s = strtol(a, &a, 0);
+  if (*a != '\0' || s < 0 || s > 0x27) {
+    printf("Invalid info sector: %s\n", a);
+    return -1;
+  }
+
+  return mad_set_info(&current_tag, (size_t)s);
+}
+
+int com_mad_init(char* arg) {
+  char* a = strtok(arg, " ");
+
+  if (!a) {
+    printf("Too few arguments: 1K|4K\n");
+    return -1;
+  }
+
+  if (strtok(NULL, " ") != (char*)NULL) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  mf_size_t s = parse_size(a, settings.size);
+  return mad_init(&current_tag, s);
+}
+
+int com_mad_crc(char* arg) {
+  char* a = strtok(arg, " ");
+
+  if (a) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  return mad_crc(&current_tag);
 }
 
 int com_gen1_wipe(char* arg) {

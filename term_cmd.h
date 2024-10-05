@@ -73,6 +73,15 @@ int com_put_uid(char* arg);
 int com_put_key(char* arg);
 int com_put_perm(char* arg);
 int com_put_mod(char* arg);
+int com_put_ndef(char* arg);
+
+// MAD functions
+int com_mad(char* arg);
+int com_mad_size(char* arg);
+int com_mad_put(char* arg);
+int com_mad_info(char* arg);
+int com_mad_init(char* arg);
+int com_mad_crc(char* arg);
 
 // setting functions
 int com_set(char* arg);

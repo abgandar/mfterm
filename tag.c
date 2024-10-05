@@ -598,3 +598,281 @@ void check_tag(mf_tag_t* tag, bool fix) {
     printf("]\n");
   }
 }
+
+
+
+typedef enum {
+  TNF_EMPTY = 0x00,
+  TNF_WELL_KNOWN = 0x01,
+  TNF_MIME = 0x02,
+  TNF_URI = 0x03,
+  TNF_EXTERNAL = 0x04,
+  TNF_UNKNOWN = 0x05,
+  TNF_UNCHANGED = 0x06,
+  TNF_RESERVED = 0x07,
+  NDEF_IL = 0x08,
+  NDEF_SR = 0x10,
+  NDEF_CF = 0x20,
+  NDEF_ME = 0x40,
+  NDEF_MB = 0x80
+} NDEF_flags;
+
+typedef enum {
+  NDEF_TEXT = 'T',
+  NDEF_URI = 'U'
+} NDEF_wkt;
+
+typedef struct {
+  uint8_t flags;
+  uint8_t type_len;
+  uint32_t payload_len;
+  uint8_t id_len;
+  uint8_t* type;
+  uint8_t* id;
+  uint8_t* payload;
+} NDEF_record_t;
+
+const char* NDEF_uri_prefix[] = {
+  "",
+  "http://www.",
+  "https://www.",
+  "http://",
+  "https://",
+  "tel:",
+  "mailto:",
+  "ftp://anonymous:anonymous@",
+  "ftp://ftp.",
+  "ftps://",
+  "sftp://",
+  "smb://",
+  "nfs://",
+  "ftp://",
+  "dav://",
+  "news:",
+  "telnet://",
+  "imap:",
+  "rtsp://",
+  "urn:",
+  "pop:",
+  "sip:",
+  "sips:",
+  "tftp:",
+  "btspp://",
+  "btl2cap://",
+  "btgoep://",
+  "tcpobex://",
+  "irdaobex://",
+  "file://",
+  "urn:epc:id:",
+  "urn:epc:tag:",
+  "urn:epc:pat:",
+  "urn:epc:raw:",
+  "urn:epc:",
+  "urn:nfc:",
+  NULL
+};
+
+static const uint8_t NDEF_key_A[] = {0xd3, 0xf7, 0xd3, 0xf7, 0xd3, 0xf7};
+
+static int ndef_uri_prefix(const char** uri) {
+  int len = 0, res = 0, i = 0;
+  for( const char** prefix = NDEF_uri_prefix; *prefix; prefix++, i++ )
+  {
+    const int l = (int)strlen(*prefix);
+    if (len <= l && strncmp(*prefix, *uri, (size_t)l) == 0) {
+      len = l;
+      res = i;
+    }
+  }
+  *uri += len;
+  return res;
+}
+
+int ndef_URI_record(const char* uri, uint8_t** ndef, size_t* size) {
+  const char* data = uri;
+  uint8_t uri_prefix = (uint8_t)ndef_uri_prefix(&data);
+
+  size_t pl = strlen(data)+1;
+  bool sr = pl <= 0xFF;
+  *size = pl + (sr ? 4 : 7);
+  *ndef = malloc(*size);
+  if (!*ndef) {
+    *size = 0;
+    return -1;
+  }
+
+  uint8_t* p = *ndef;
+  *p++ = sr ? (NDEF_MB | NDEF_ME | TNF_WELL_KNOWN) : (NDEF_MB | NDEF_ME | NDEF_SR | TNF_WELL_KNOWN);  // flags
+  *p++ = 1;                 // type length
+  if (sr) {
+    *p++ = (uint8_t)pl;     // payload length
+  } else {
+    *p++ = (uint8_t)((pl>>24) & 0xFF);
+    *p++ = (uint8_t)((pl>>16) & 0xFF);
+    *p++ = (uint8_t)((pl>> 8) & 0xFF);
+    *p++ = (uint8_t)((pl    ) & 0xFF);
+  }
+  *p++ = NDEF_URI;          // type
+  *p++ = uri_prefix;        // payload: prefix code
+  memcpy(p, data, pl-1);    // payload: uri
+
+  return 0;
+}
+
+int ndef_put_sectors(mf_tag_t* tag, size_t s1, size_t s2, const uint8_t* ndef, const size_t size) {
+  // check size
+  bool short_tlv = size <= 0xfe;
+  size_t ss = 0, tlv_size = size + (short_tlv ? 2 : 4);
+  for (size_t s = s1; s <= s2; s++) {
+    if (s==0 || s==0x10) continue;    // reserved sectors
+    ss += (sector_size(sector_to_header(s))-1)*16;
+  }
+  if (ss < tlv_size)
+    return -1;
+
+  // combined data
+  uint8_t* tlv = malloc(tlv_size);
+  if (!tlv)
+    return -1;
+  if (short_tlv) {
+    tlv[0] = 0x03;
+    tlv[1] = (uint8_t)size;
+    memcpy(tlv+2, ndef, size);
+  } else {
+    tlv[0] = 0x03;
+    tlv[1] = 0xFF;
+    tlv[2] = (uint8_t)((size>>8) & 0x0F);
+    tlv[3] = (uint8_t)(size & 0x0F);
+    memcpy(tlv+4, ndef, size);
+  }
+
+  // copy tlv and adjust access bits
+  uint8_t* data = tlv;
+  for (size_t s = s1; s <= s2; s++) {
+    if (s==0 || s==0x10) continue;    // reserved sectors
+    size_t header = sector_to_header(s);
+    size_t trailer = sector_to_trailer(s);
+    for (size_t b = header; b < trailer; b++) {
+      for (size_t i=0; i<16; i++) {
+        if (tlv_size > 0) {
+          tag->amb[b].mbd.abtData[i] = *data;
+          tlv_size--; data++;
+        } else {
+          tag->amb[b].mbd.abtData[i] = 0;
+        }
+      }
+    }
+    // adjust keys and access bits
+    memcpy(tag->amb[trailer].mbt.abtKeyA, NDEF_key_A, sizeof(NDEF_key_A));
+    const uint8_t ac[] = {0x78, 0x77, 0x88, 0b01000011 };   // "read only", but actually allow write with B
+    memcpy(tag->amb[trailer].mbt.abtAccessBits, ac, sizeof(ac));
+  }
+
+  free(tlv);
+  return 0;
+}
+
+static uint8_t do_crc(uint8_t c, const uint8_t v) {
+  c ^= v;
+  for (int i = 0; i < 8; i++) {
+    if (c&0x80) {
+      c = (uint8_t)((c<<1) ^ 0x1d);
+    } else {
+      c <<= 1;
+    }
+  }
+  return c;
+}
+
+int mad_crc(mf_tag_t* tag) {
+  uint8_t crc = 0xc7;
+  for (int i = 1; i < 16; i++)
+    crc = do_crc(crc, tag->amb[1].mbd.abtData[i]);
+  for (int i = 0; i < 16; i++)
+    crc = do_crc(crc, tag->amb[2].mbd.abtData[i]);
+  tag->amb[0x01].mbd.abtData[0] = crc;
+
+  // version 2 MAD?
+  if ((tag->amb[3].mbt.abtAccessBits[3] & 0x03) == 0x02) {
+    crc = 0xe3;
+    for (int i = 1; i < 16; i++)
+      crc = do_crc(crc, tag->amb[0x40].mbd.abtData[i]);
+    for (int i = 0; i < 16; i++)
+      crc = do_crc(crc, tag->amb[0x41].mbd.abtData[i]);
+    for (int i = 0; i < 16; i++)
+      crc = do_crc(crc, tag->amb[0x42].mbd.abtData[i]);
+    tag->amb[0x40].mbd.abtData[0] = crc;
+  }
+
+  return 0;
+}
+
+int mad_set_info(mf_tag_t* tag, size_t sector) {
+  if (sector < 0 || sector > 0x27 || sector == 0x10)
+    return -1;
+
+  tag->amb[0x01].mbd.abtData[1] = (uint8_t)sector;
+
+  // version 2 MAD?
+  if ((tag->amb[3].mbt.abtAccessBits[3] & 0x03) == 0x02)
+    tag->amb[0x10].mbd.abtData[1] = (uint8_t)sector;
+
+  return mad_crc(tag);
+}
+
+int mad_put_aid(mf_tag_t* tag, size_t sector, uint16_t aid) {
+  if (sector < 1 || sector > 0x20 || sector == 0x10)
+    return -1;
+
+  if (sector <= 0x0F) {
+    int byte = (int)sector*2;
+    tag->amb[0x01+byte/16].mbd.abtData[byte%16] = (uint8_t)(aid&0xFF);
+    tag->amb[0x01+byte/16].mbd.abtData[byte%16+1] = (uint8_t)((aid>>8)&0xFF);
+  } else {
+    int byte = (int)(sector-0x10)*2;
+    tag->amb[0x40+byte/16].mbd.abtData[byte%16] = (uint8_t)(aid&0xFF);
+    tag->amb[0x40+byte/16].mbd.abtData[byte%16+1] = (uint8_t)((aid>>8)&0xFF);
+  }
+
+  return mad_crc(tag);
+}
+
+int mad_init(mf_tag_t* tag, mf_size_t size) {
+  const uint8_t mad_key_A[] = {0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5};
+  uint8_t mad_ac[] = {0x78, 0x77, 0x88, size == MF_1K ? 0b11000001 : 0b11000010 };
+
+  memset(tag->amb[0x01].mbd.abtData, 0, 16);
+  memset(tag->amb[0x02].mbd.abtData, 0, 16);
+  memcpy(tag->amb[0x03].mbt.abtKeyA, mad_key_A, sizeof(mad_key_A));
+  memcpy(tag->amb[0x03].mbt.abtAccessBits, mad_ac, sizeof(mad_ac));
+
+  if (size == MF_4K) {
+    memset(tag->amb[0x10].mbd.abtData, 0, 16);
+    memset(tag->amb[0x11].mbd.abtData, 0, 16);
+    memset(tag->amb[0x12].mbd.abtData, 0, 16);
+    memcpy(tag->amb[0x13].mbt.abtKeyA, mad_key_A, sizeof(mad_key_A));
+    mad_ac[3] = 0;
+    memcpy(tag->amb[0x13].mbt.abtAccessBits, mad_ac, sizeof(mad_ac));
+  }
+
+  return mad_crc(tag);
+}
+
+int mad_size(mf_tag_t* tag, mf_size_t size) {
+  uint8_t flag = MF_4K ? 2 : 1;
+
+  tag->amb[0x03].mbt.abtAccessBits[3] = (tag->amb[0x03].mbt.abtAccessBits[3] & 0xfc) | flag;
+  if (size == MF_4K)
+    tag->amb[0x03].mbt.abtAccessBits[3] = 0;
+
+  return mad_crc(tag);
+}
+
+typedef enum {
+  MF_AID_FREE = 0x0000,
+  MF_AID_DEFECT = 0x0001,
+  MF_AID_RESERVED = 0x0002,
+  MF_AID_DIRECTORY = 0x0003,
+  MF_AID_INFO = 0x0004,
+  MF_AID_NA = 0x0005
+} mf_aid;

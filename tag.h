@@ -122,4 +122,14 @@ void set_ac(mf_tag_t* tag, size_t block, uint32_t c1, uint32_t c2, uint32_t c3);
 
 void check_tag(mf_tag_t* tag, bool fix);
 
+int ndef_put_sectors(mf_tag_t* tag, size_t s1, size_t s2, const uint8_t* ndef, const size_t size);
+int ndef_URI_record(const char* uri, uint8_t** ndef, size_t* size);
+
+int mad_crc(mf_tag_t* tag);
+int mad_set_info(mf_tag_t* tag, size_t sector);
+int mad_put_aid(mf_tag_t* tag, size_t sector, uint16_t aid);
+int mad_init(mf_tag_t* tag, mf_size_t size);
+int mad_size(mf_tag_t* tag, mf_size_t size);
+
+
 #endif
