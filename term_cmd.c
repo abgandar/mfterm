@@ -879,7 +879,7 @@ int com_put_ndef(char* arg) {
   switch (type) {
     case 'U':
       ndef_URI_record((char*)bytes, &ndef, &size);
-      break
+      break;
     case 'T':
       ndef_text_record("en-en", (char*)bytes, &ndef, &size);
       break;
