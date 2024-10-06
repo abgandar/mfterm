@@ -24,6 +24,11 @@
 #include "util.h"
 #include "ndef.h"
 
+// access bits for RW and RO NDEF sectors (VVvvRRWW)
+static const uint8_t ndef_ac_rw[] = {0x7F, 0x07, 0x88, 0b01000000 };
+static const uint8_t ndef_ac_ro[] = {0x07, 0x8F, 0x0F, 0b01000011 };
+static const uint8_t ndef_key_A[] = {0xd3, 0xf7, 0xd3, 0xf7, 0xd3, 0xf7};
+
 const char* NDEF_uri_prefix[] = {
   "",
   "http://www.",
@@ -177,7 +182,7 @@ int ndef_mime_record(const char* mime, const char* data, uint8_t** ndef, size_t*
   return 0;
 }
 
-int ndef_put_sectors(mf_tag_t* tag, size_t s1, size_t s2, const uint8_t* ndef, const size_t size) {
+int ndef_put_sectors(mf_tag_t* tag, size_t s1, size_t s2, const uint8_t* ndef, const size_t size, bool ro) {
   // check size
   bool short_tlv = size <= 0xfe;
   size_t ss = 0, tlv_size = size + (short_tlv ? 2 : 4) + 1; // final closing tlv
@@ -218,17 +223,24 @@ int ndef_put_sectors(mf_tag_t* tag, size_t s1, size_t s2, const uint8_t* ndef, c
       }
     }
     // adjust keys and access bits
-    const uint8_t NDEF_key_A[] = {0xd3, 0xf7, 0xd3, 0xf7, 0xd3, 0xf7};
-    memcpy(tag->amb[trailer].mbt.abtKeyA, NDEF_key_A, sizeof(NDEF_key_A));
-    const uint8_t ac[] = {0x7F, 0x07, 0x88, 0b01000000 };   // VVvvRRWW
-    memcpy(tag->amb[trailer].mbt.abtAccessBits, ac, sizeof(ac));
+    memcpy(tag->amb[trailer].mbt.abtKeyA, ndef_key_A, sizeof(ndef_key_A));
+    memcpy(tag->amb[trailer].mbt.abtAccessBits, ro ? ndef_ac_ro : ndef_ac_rw, sizeof(ndef_ac_rw));
   }
 
   free(tlv);
   return 0;
 }
 
+int ndef_perm(mf_tag_t* tag, size_t s1, size_t s2, bool ro) {
+  for (size_t s = s1; s <= s2; s++) {
+    if (s==0 || s==0x10) continue;    // reserved sectors
+    size_t trailer = sector_to_trailer(s);
+    memcpy(tag->amb[trailer].mbt.abtAccessBits, ro ? ndef_ac_ro : ndef_ac_rw, sizeof(ndef_ac_rw));
+  }
+  return 0;
+}
+
 int ndef_print(mf_tag_t* tag) {
-    printf("Not yet implemented\n");
-    return -1;
+  printf("Not yet implemented\n");
+  return -1;
 }

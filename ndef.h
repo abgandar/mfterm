@@ -46,10 +46,11 @@ typedef enum {
 } NDEF_wkt;
 
 // NDEF functions
-int ndef_put_sectors(mf_tag_t* tag, size_t s1, size_t s2, const uint8_t* ndef, const size_t size);
+int ndef_put_sectors(mf_tag_t* tag, size_t s1, size_t s2, const uint8_t* ndef, const size_t size, bool ro);
 int ndef_URI_record(const char* uri, uint8_t** ndef, size_t* size);
 int ndef_text_record(const char* lang, const char* text, uint8_t** ndef, size_t* size);
 int ndef_mime_record(const char* mime, const char* data, uint8_t** ndef, size_t* size);
+int ndef_perm(mf_tag_t* tag, size_t s1, size_t s2, bool ro);
 int ndef_print(mf_tag_t* tag);
 
 #endif

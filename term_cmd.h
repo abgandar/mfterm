@@ -97,6 +97,7 @@ int com_edit_mod(char* argv[], size_t argc);
 // NDEF commands
 int com_ndef(char* argv[], size_t argc);
 int com_ndef_put(char* argv[], size_t argc);
+int com_ndef_perm(char* argv[], size_t argc);
 
 // MAD commands
 int com_mad(char* argv[], size_t argc);
@@ -105,6 +106,7 @@ int com_mad_put(char* argv[], size_t argc);
 int com_mad_info(char* argv[], size_t argc);
 int com_mad_init(char* argv[], size_t argc);
 int com_mad_crc(char* argv[], size_t argc);
+int com_mad_perm(char* argv[], size_t argc);
 
 // setting commands
 int com_set(char* argv[], size_t argc);

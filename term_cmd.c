@@ -85,12 +85,14 @@ const command_t commands[] = {
 
   { "ndef",         com_ndef,          0, 1, "#sector: Show NDEF record(s) in sector(s)" },
   { "ndef put",     com_ndef_put,      0, 1, "#sector (U URL | T LANG TEXT | M MIME CONTENT)...: Place NDEF record(s) in sector(s)" },
+  { "ndef perm",    com_ndef_perm,     0, 1, "#sector RW|RO: Set permissions to read-only or read-write" },
 
   { "mad",          com_mad,           0, 1, "Print tag MAD" },
   { "mad put",      com_mad_put,       0, 1, "#sector AID: Set 16-bit AID for given sector(s)" },
   { "mad size",     com_mad_size,      0, 1, "1K|4K: Set tag MAD size/version (v1=1K, v2=4K)" },
   { "mad init",     com_mad_init,      0, 1, "1K|4K: Initialize tag MAD (v1=1K, v2=4K)" },
   { "mad crc",      com_mad_crc,       0, 1, "Update tag MAD CRC" },
+  { "mad perm",     com_mad_perm,      0, 1, "#sector RW|RO: Set permissions to read-only or read-write" },
 
   { "set",          com_set,           0, 1, "Print current settings" },
   { "set auth",     com_set_auth,      0, 1, "A|B|AB|*: Set keys for authentication (* = gen1 unlock)" },
@@ -783,13 +785,42 @@ int com_ndef_put(char* argv[], size_t argc) {
   // Write to given sectors
   if (size > 0)
   {
-    int res = ndef_put_sectors(&current_tag, s1, s2, ndef, size);
+    int res = ndef_put_sectors(&current_tag, s1, s2, ndef, size, false);
     if (res != 0)
       printf("Not enough memory in sectors (payload: %ld bytes)\n", size);
     return res;
   }
 
   return 0;
+}
+
+int com_ndef_perm(char* argv[], size_t argc) {
+  if (argc != 2) {
+    printf("Expecting two arguments: #sector RO|RW\n");
+    return -1;
+  }
+
+  size_t s1, s2;
+  if( parse_sectors( argv[0], &s1, &s2, settings.size ) != 0 ) {
+    printf("Invalid sector range: %s\n", argv[0]);
+    return -1;
+  }
+  if (s2 > 39 || s1 > s2) {
+    printf("Invalid sector range: %lu-%lu\n", s1, s2);
+    return -1;
+  }
+
+  bool ro = false;
+  if (strcasecmp(argv[1], "RO") == 0)
+    ro = true;
+  else if (strcasecmp(argv[1], "RW") == 0)
+    ro = false;
+  else {
+    printf("Invalid argument (RO|RW): %s\n", argv[1]);
+    return -1;
+  }
+
+  return ndef_perm(&current_tag, s1, s2, ro);
 }
 
 // MAD functions
@@ -896,6 +927,25 @@ int com_mad_crc(char* argv[], size_t argc) {
   }
 
   return mad_crc(&current_tag);
+}
+
+int com_mad_perm(char* argv[], size_t argc) {
+  if (argc != 1) {
+    printf("Expecting one argument: RO|RW\n");
+    return -1;
+  }
+
+  bool ro = false;
+  if (strcasecmp(argv[0], "RO") == 0)
+    ro = true;
+  else if (strcasecmp(argv[0], "RW") == 0)
+    ro = false;
+  else {
+    printf("Invalid argument (RO|RW): %s\n", argv[0]);
+    return -1;
+  }
+
+  return mad_perm(&current_tag, ro);
 }
 
 int com_gen1_wipe(char* argv[], size_t argc) {

@@ -39,6 +39,10 @@ const aid_t AIDs[] = {
 };
 
 static const uint8_t mad_key_A[] = {0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5};
+static const uint8_t mad_ac_rw_v1[] = {0x78, 0x77, 0x88, 0b11000001 };
+static const uint8_t mad_ac_rw_v2[] = {0x78, 0x77, 0x88, 0b11000010 };
+static const uint8_t mad_ac_ro_v1[] = {0x07, 0x8F, 0x0F, 0b11000001 };
+static const uint8_t mad_ac_ro_v2[] = {0x07, 0x8F, 0x0F, 0b11000010 };
 
 static uint8_t do_crc(uint8_t c, const uint8_t v) {
   c ^= v;
@@ -112,20 +116,18 @@ int mad_put_aid(mf_tag_t* tag, size_t sector, uint16_t aid) {
 }
 
 int mad_init(mf_tag_t* tag, mf_size_t size) {
-  uint8_t mad_ac[] = {0x78, 0x77, 0x88, size == MF_1K ? 0b11000001 : 0b11000010 };
-
   memset(tag->amb[0x01].mbd.abtData, 0, 16);
   memset(tag->amb[0x02].mbd.abtData, 0, 16);
   memcpy(tag->amb[0x03].mbt.abtKeyA, mad_key_A, sizeof(mad_key_A));
-  memcpy(tag->amb[0x03].mbt.abtAccessBits, mad_ac, sizeof(mad_ac));
+  memcpy(tag->amb[0x03].mbt.abtAccessBits, size == MF_1K ? mad_ac_rw_v1 : mad_ac_rw_v2, sizeof(mad_ac_rw_v1));
 
   if (size == MF_4K) {
     memset(tag->amb[0x40].mbd.abtData, 0, 16);
     memset(tag->amb[0x41].mbd.abtData, 0, 16);
     memset(tag->amb[0x42].mbd.abtData, 0, 16);
     memcpy(tag->amb[0x43].mbt.abtKeyA, mad_key_A, sizeof(mad_key_A));
-    mad_ac[3] = 0;
-    memcpy(tag->amb[0x43].mbt.abtAccessBits, mad_ac, sizeof(mad_ac));
+    memcpy(tag->amb[0x43].mbt.abtAccessBits, size == MF_1K ? mad_ac_rw_v1 : mad_ac_rw_v2, sizeof(mad_ac_rw_v1));
+    tag->amb[0x43].mbt.abtAccessBits[3] = 0;
   }
 
   return mad_crc(tag);
@@ -202,4 +204,51 @@ int mad_print(mf_tag_t* tag) {
   }
 
   return 0;
+}
+
+int mad_perm(mf_tag_t* tag, bool ro) {
+  const uint8_t gpb1 = tag->amb[0x03].mbt.abtAccessBits[3];
+
+  if ((gpb1 & 0x03) == 2) {
+    memcpy(tag->amb[0x03].mbt.abtAccessBits, ro ? mad_ac_ro_v2 : mad_ac_rw_v2, sizeof(mad_ac_ro_v2));
+    memcpy(tag->amb[0x43].mbt.abtAccessBits, ro ? mad_ac_ro_v2 : mad_ac_rw_v2, sizeof(mad_ac_ro_v2));
+    tag->amb[0x43].mbt.abtAccessBits[3] = 0;
+  } else {
+    memcpy(tag->amb[0x03].mbt.abtAccessBits, ro ? mad_ac_ro_v1 : mad_ac_rw_v1, sizeof(mad_ac_ro_v1));
+  }
+
+  return 0;
+}
+
+int mad_get_version(mf_tag_t* tag) {
+  const uint8_t gpb1 = tag->amb[0x03].mbt.abtAccessBits[3];
+  return (gpb1 & 0x03) == 2 ? 2 : 1;
+}
+
+bool mad_is_valid(mf_tag_t* tag) {
+  const uint8_t gpb1 = tag->amb[0x03].mbt.abtAccessBits[3];
+  if (!(gpb1 & 0x80))
+    return false;
+
+  const uint8_t version = gpb1 & 0x03;
+  uint8_t crcs[2];
+  mad_calc_crc(tag, crcs);
+  const uint8_t crc1 = tag->amb[0x01].mbd.abtData[0];
+  const uint8_t crc2 = tag->amb[0x40].mbd.abtData[0];
+
+  if (version == 2)
+    return crc1 == crcs[0] && crc2 == crcs[1];
+  else
+    return crc1 == crcs[0];
+}
+
+uint16_t mad_get_aid(mf_tag_t* tag, size_t sector) {
+  if (sector == 0)
+    return 0;
+  else if (sector < 16)
+    return (uint16_t)(tag->amb[0x01+(2*sector)/16].mbd.abtData[(2*sector)%16] | tag->amb[0x01+(2*sector)/16].mbd.abtData[(2*sector)%16+1]<<8);
+  else if (sector < 40)
+    return (uint16_t)(tag->amb[0x40+(2*(sector-15))/16].mbd.abtData[(2*(sector-15))%16] | tag->amb[0x40+(2*(sector-15))/16].mbd.abtData[(2*(sector-15))%16+1]<<8);
+  else
+    return 0;
 }
