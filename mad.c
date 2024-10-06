@@ -26,15 +26,19 @@
 const aid_t AIDs[] = {
   {"NDEF",      0xe103},
   {"FREE",      0x0000},
+  {"DEF",       0x0001},    // alias
   {"DEFECT",    0x0001},
-  {"RESERVED",  0x0002},
   {"RES",       0x0002},    // alias
-  {"DIRECTORY", 0x0003},
+  {"RESERVED",  0x0002},
   {"DIR",       0x0003},    // alias
+  {"DIRECTORY", 0x0003},
   {"INFO",      0x0004},
+  {"VOID",      0x0005},    // alias
   {"UNUSED",    0x0005},
   {NULL,        0x0000}
 };
+
+static const uint8_t mad_key_A[] = {0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5};
 
 static uint8_t do_crc(uint8_t c, const uint8_t v) {
   c ^= v;
@@ -108,7 +112,6 @@ int mad_put_aid(mf_tag_t* tag, size_t sector, uint16_t aid) {
 }
 
 int mad_init(mf_tag_t* tag, mf_size_t size) {
-  const uint8_t mad_key_A[] = {0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5};
   uint8_t mad_ac[] = {0x78, 0x77, 0x88, size == MF_1K ? 0b11000001 : 0b11000010 };
 
   memset(tag->amb[0x01].mbd.abtData, 0, 16);
@@ -139,7 +142,64 @@ int mad_size(mf_tag_t* tag, mf_size_t size) {
   return mad_crc(tag);
 }
 
+static const char* find_AID(const uint16_t val) {
+  static char str[5];
+  for (const aid_t *aid = AIDs; aid->name; aid++ ) {
+    if (aid->val == val) return aid->name;
+  }
+  snprintf(str, 5, "%04hX", val);
+  str[4] = '\0';
+  return str;
+}
+
 int mad_print(mf_tag_t* tag) {
-    printf("Not yet implemented\n");
-    return -1;
+  const uint8_t gpb1 = tag->amb[0x03].mbt.abtAccessBits[3];
+  if (!(gpb1 & 0x80)) {
+    printf("MAD not in use\n");
+    return 0;
+  }
+  const uint8_t version = gpb1 & 0x03;
+  printf("MAD version: %s\n", version == 1 ? "1" : (version == 2 ? "2" : "invalid"));
+  printf("Card type:   %s\n", gpb1 & 0x40 ? "multi application" : "single application");
+  const int key = memcmp(tag->amb[0x03].mbt.abtKeyA, mad_key_A, 6);
+  printf("MAD1 key:    %s\n\n", key == 0 ? "MAD public key A" : "proprietary");
+  uint8_t crcs[2];
+  mad_calc_crc(tag, crcs);
+  const uint8_t crc1 = tag->amb[0x01].mbd.abtData[0];
+  printf("MAD1 CRC:    %s (tag: %02hhx, crc: %02hhx)\n", crcs[0] == crc1 ? "valid" : "invalid", crc1, crcs[0]);
+  const uint8_t info1 = tag->amb[0x01].mbd.abtData[1];
+  printf("MAD1 info:   %02hhx\n", info1 & 0x3f);
+
+  if (version == 2) {
+    const int key = memcmp(tag->amb[0x43].mbt.abtKeyA, mad_key_A, 6);
+    printf("\nMAD2 key:    %s\n", key == 0 ? "MAD public key A" : "proprietary");
+    const uint8_t crc2 = tag->amb[0x40].mbd.abtData[0];
+    printf("MAD2 CRC:    %s (tag: %02hhx, crc: %02hhx)\n", crcs[1] == crc2 ? "valid" : "invalid", crc2, crcs[1]);
+    const uint8_t info2 = tag->amb[0x41].mbd.abtData[1];
+    printf("MAD2 info:   %02hhx\n", info2 & 0x3f);
+  }
+
+  // print MAD1 allocation
+  printf("\n      00      01      02      03      04      05      06      07\n00   MAD1    ");
+  for (int i = 1; i < 16; i++) {
+    if (i%8 == 0) printf("\n%02x   ", i);
+    uint16_t val;
+    val = (uint16_t)(tag->amb[0x01+(2*i)/16].mbd.abtData[(2*i)%16] | tag->amb[0x01+(2*i)/16].mbd.abtData[(2*i)%16+1]<<8);
+    printf("%-6s  ", find_AID(val));
+  }
+  printf("\n");
+
+  if (version == 2) {
+    // print MAD2 allocation
+    printf("\n10   MAD2    ");
+    for (int i = 1; i < 24; i++) {
+      if (i%8 == 0) printf("\n%02x   ", i+16);
+      uint16_t val;
+      val = (uint16_t)(tag->amb[0x40+(2*i)/16].mbd.abtData[(2*i)%16] | tag->amb[0x40+(2*i)/16].mbd.abtData[(2*i)%16+1]<<8);
+      printf("%-6s  ", find_AID(val));
+    }
+    printf("\n");
+  }
+
+  return 0;
 }

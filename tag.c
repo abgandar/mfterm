@@ -24,6 +24,7 @@
 #include "mifare.h"
 #include "util.h"
 #include "tag.h"
+#include "mad.h"
 
 mf_tag_t current_tag;
 mf_tag_t current_auth;
@@ -553,4 +554,29 @@ void check_tag(mf_tag_t* tag, bool fix) {
   } else {
     printf("]\n");
   }
+
+  printf("Checking MAD CRCs [");
+  const uint8_t gpb1 = tag->amb[0x03].mbt.abtAccessBits[3];
+  if (gpb1 & 0x80) {
+    const uint8_t version = gpb1 & 0x03;
+    uint8_t crcs[2];
+    mad_calc_crc(tag, crcs);
+    const uint8_t crc1 = tag->amb[0x01].mbd.abtData[0];
+    if (crc1 == crcs[0]) {
+      printf(".");
+    } else {
+      if (fix) tag->amb[0x01].mbd.abtData[0] = crc1;
+      printf("x");
+    }
+    if (version == 2) {
+      const uint8_t crc2 = tag->amb[0x40].mbd.abtData[0];
+      if (crc2 == crcs[1]) {
+        printf(".");
+      } else {
+        if (fix) tag->amb[0x40].mbd.abtData[0] = crc2;
+        printf("x");
+      }
+    }
+  }
+  printf("]\n");
 }
