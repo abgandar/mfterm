@@ -106,14 +106,14 @@ const command_t commands[] = {
   { "set size",     com_set_size,      0, 1, "1K|4K: Set the default tag size" },
   { "set device",   com_set_device,    0, 1, "Set NFC device to use" },
 
-  { "keys",         com_keys_print,    0, 1, "#sector: Print sector keys" },
-  { "keys load",    com_keys_load,     1, 1, "Load keys from file" },
-  { "keys save",    com_keys_save,     1, 1, "Save keys to file" },
-  { "keys clear",   com_keys_clear,    0, 1, "Clear keys" },
-  { "keys put",     com_keys_put,      0, 1, "#sector A|B|AB xxxxxxxxxxxx: Set authorization key" },
-  { "keys import",  com_keys_import,   0, 1, "#sector A|B|AB: Import sector keys from tag" },
-  { "keys export",  com_keys_export,   0, 1, "#sector A|B|AB: Export sector keys to tag" },
-  { "keys test",    com_keys_test,     0, 1, "#sector A|B|AB: Try to authenticate with the keys" },
+  { "keys",         com_keys_print,    0, 1, "#sector: Print sector auth keys" },
+  { "keys load",    com_keys_load,     1, 1, "Load auth keys from file" },
+  { "keys save",    com_keys_save,     1, 1, "Save auth keys to file" },
+  { "keys clear",   com_keys_clear,    0, 1, "Clear auth keys" },
+  { "keys put",     com_keys_put,      0, 1, "#sector A|B|AB xxxxxxxxxxxx: Set auth key" },
+  { "keys import",  com_keys_import,   0, 1, "#sector A|B|AB: Import sector auth keys from tag" },
+  { "keys export",  com_keys_export,   0, 1, "#sector A|B|AB: Export sector auth keys to tag" },
+  { "keys test",    com_keys_test,     0, 1, "#sector A|B|AB: Try to authenticate with auth keys" },
 
   { "dict",         com_dict_print,    0, 1, "Print the key dictionary" },
   { "dict load",    com_dict_load,     1, 1, "Load a dictionary key file" },
@@ -147,6 +147,9 @@ mf_key_type_t parse_key_type(const char* str, const char* def);
 
 // Parse a key size (1K|4K)
 mf_size_t parse_size(const char* str, const char* def);
+
+// parse quoted strings
+char* strqtok(char* str, char** end);
 
 // Compute the MAC using the current_mac_key. If update is nonzero,
 // the mac of the current tag is updated. If not, the MAC is simply
@@ -547,42 +550,29 @@ int com_put(char* arg) {
 
   // Consume the byte tokens or ASCII string
   uint8_t bytes[16];
-  uint8_t* b = bytes+offset;
   size_t count = 0;
   if( *arg_str == '"' ) {
     // ASCII string
-    arg_str++;
-    int escape = 0;
-    do {
-      if( !escape && *arg_str == '"' ) {
-        break;
-      }
-      if( !escape && *arg_str == '\\' ) {
-        escape = 1;
-        arg_str++;
-        continue;
-      }
-
-      // store value
-      if (count+offset > 15) {
-        printf("Too many bytes specified.\n");
-        return -1;
-      }
-      *b++ = (uint8_t)*arg_str++;
-      count++;
-      escape = 0;
-    } while(*arg_str != '\0');
-    if(*arg_str != '"') {
-      printf("Unterminated string.\n");
+    char* next;
+    char* a = strqtok(arg_str, &next);
+    if (!next) {
+      printf("Unterminated string: %s\n", arg_str);
       return -1;
     }
-    if(strtok(NULL, " ") != (char*)NULL) {
+    if(*next != '\0') {
       printf("Too many arguments.\n");
       return -1;
     }
+    count = strlen(a);
+    if (count+offset > 16) {
+      printf("String too long for given offset.\n");
+      return -1;
+    }
+    memcpy(bytes+offset, a, count);
   }
   else {
     // byte tokens
+    uint8_t* b = bytes+offset;
     for (char* byte_str = strtok(arg_str, " "); byte_str; byte_str = strtok(NULL, " ")) {
       long int byte = strtol(byte_str, &byte_str, 16);
       if (*byte_str != '\0') {
@@ -593,8 +583,6 @@ int com_put(char* arg) {
         printf("Invalid byte value [0,ff]: %lx\n", byte);
         return -1;
       }
-
-      // Save the data
       if (count+offset > 15) {
         printf("Too many bytes specified.\n");
         return -1;
@@ -811,7 +799,7 @@ int com_put_ndef(char* arg) {
   char* arg_str = strtok(NULL, "");   // remainder of string
 
   if (!sector_str || !type_str || !arg_str) {
-    printf("Too few arguments: #sector (T|U) \"ASCII\"\n");
+    printf("Too few arguments: #sector (T LANG TEXT | U URL)\n");
     return -1;
   }
 
@@ -832,56 +820,28 @@ int com_put_ndef(char* arg) {
   }
 
   // Consume ASCII string
-  if( *arg_str != '"' ) {
-    printf("Payload data must be enclosed in quotes.\n");
+  char* next, *b;
+  char* a = strqtok(arg_str, &next);
+  if (!next) {
+    printf("Invalid first argument: %s\n", arg_str);
     return -1;
   }
-
-  uint8_t bytes[4096];
-  uint8_t* b = bytes;
-  size_t count = 0;
-  arg_str++;
-  int escape = 0;
-  do {
-    if( !escape && *arg_str == '"' ) {
-      break;
-    }
-    if( !escape && *arg_str == '\\' ) {
-      escape = 1;
-      arg_str++;
-      continue;
-    }
-
-    // store value
-    if (count >= sizeof(bytes)) {
-      printf("Data string too long.\n");
-      return -1;
-    }
-    *b++ = (uint8_t)*arg_str++;
-    count++;
-    escape = 0;
-  } while(*arg_str != '\0');
-  *b = '\0';
-
-  if(*arg_str != '"') {
-    printf("Unterminated string.\n");
-    return -1;
-  }
-
-  if (count == 0) {
-    printf("No data specified.\n");
-    return -1;
-  }
+  arg_str = next;
 
   // Obtain NDEF record
   uint8_t* ndef = NULL;
   size_t size = 0;
   switch (type) {
     case 'U':
-      ndef_URI_record((char*)bytes, &ndef, &size);
+      ndef_URI_record(a, &ndef, &size);
       break;
     case 'T':
-      ndef_text_record("en-en", (char*)bytes, &ndef, &size);
+      b = strqtok(arg_str, &next);
+      if (!next) {
+        printf("Invalid or missing second argument: %s\n", arg_str ? arg_str : "");
+        return -1;
+      }
+      ndef_text_record(a, b, &ndef, &size);
       break;
   };
 
@@ -1715,6 +1675,53 @@ int parse_blocks(const char* str, size_t* a, size_t* b, const char* def) {
   *b = block_count(parse_size(settings.size, NULL))-1;
   return parse_range(str, a, b, 0);
 }
+
+// Read next quoted string argument
+// (ret,end)
+// NULL,NULL: end of string
+// x,NULL: quoted string not terminated
+char* strqtok(char* str, char** end) {
+  if (!str) {
+    if (end) *end = NULL;
+    return NULL;
+  }
+  str += strspn(str, " ");
+  if (*str == '\0') {
+    if (end) *end = NULL;
+    return NULL;
+  }
+  char delim;
+  if (*str == '"') {
+    delim = '"';
+    str++;
+  } else {
+    delim = ' ';
+  }
+  char* b = str, *res = str;
+  int escape = 0;
+  while (*str != '\0') {
+    if (!escape && *str == delim) {
+      break;
+    }
+    if (!escape && *str == '\\') {
+      escape = 1;
+      str++;
+      continue;
+    }
+    *b++ = *str++;
+    escape = 0;
+  };
+  if (end) {
+    if (*str == '\0') {
+      *end = delim==' ' ? str : NULL;   // unclosed quotes: return NULL
+    } else {
+      *end = str + 1 + strspn(str+1, " ");
+    }
+  }
+  *b = '\0';
+  return res;
+}
+
 
 // Any command starting with '.' - path spec
 int exec_path_command(const char *line) {
