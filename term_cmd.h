@@ -21,116 +21,7 @@
  * along with mfterm.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-typedef int (*cmd_func_t)(char*);
-
-// Print help command
-int com_help(char* arg);
-
-// Exit mfterm command
-int com_quit(char* arg);
-
-// Misc routines
-int com_version(char* arg);
-int com_devices(char* arg);
-
-// Settings
-int com_set(char* arg);
-int com_set_keys(char* arg);
-int com_set_size(char* arg);
-int com_set_device(char* arg);
-
-// Load/Save tag file operations
-int com_load_tag(char* arg);
-int com_save_tag(char* arg);
-
-// Safely clear (zero) commands (preserve keys, access bits, block0)
-int com_reset_tag(char* arg);
-int com_clear_all(char* arg);
-int com_clear_sector(char* arg);
-int com_clear_block(char* arg);
-
-// Read/Write tag NFC operations
-int com_read_block(char* arg);
-int com_read_sector(char* arg);
-int com_write_block(char* arg);
-int com_write_sector(char* arg);
-int com_write_mod(char* arg);
-
-// Ident card
-int com_ident(char* arg);
-int com_check_tag(char* arg);
-int com_fix_tag(char* arg);
-
-// Tag print commands
-int com_print_blocks(char* arg);
-int com_print_sectors(char* arg);
-int com_print_keys(char* arg);
-int com_print_perm(char* arg);
-
-// Tag set (value) command
-int com_put(char* arg);
-int com_put_uid(char* arg);
-int com_put_key(char* arg);
-int com_put_perm(char* arg);
-int com_put_mod(char* arg);
-int com_put_ndef(char* arg);
-
-// MAD functions
-int com_mad(char* arg);
-int com_mad_size(char* arg);
-int com_mad_put(char* arg);
-int com_mad_info(char* arg);
-int com_mad_init(char* arg);
-int com_mad_crc(char* arg);
-
-// setting functions
-int com_set(char* arg);
-int com_set_auth(char* arg);
-int com_set_device(char* arg);
-int com_set_size(char* arg);
-
-// GEN1 card commands
-int com_gen1_wipe(char* arg);
-
-// GEN3 card commands
-int com_gen3_writeuid(char* arg);
-int com_gen3_write0(char* arg);
-int com_gen3_lock(char* arg);
-
-// Key operations
-int com_keys_load(char* arg);
-int com_keys_save(char* arg);
-int com_keys_clear(char* arg);
-int com_keys_put(char* arg);
-int com_keys_import(char* arg);
-int com_keys_export(char* arg);
-int com_keys_print(char* arg);
-int com_keys_test(char* arg);
-
-// Dictionary operations
-int com_dict_load(char* arg);
-int com_dict_clear(char* arg);
-int com_dict_attack(char* arg);
-int com_dict_add(char* arg);
-int com_dict_print(char* arg);
-
-// Specification operations
-int com_spec_load(char* arg);
-int com_spec_clear(char* arg);
-int com_spec_print(char* arg);
-
-// MAC operations
-int com_mac_key_get_set(char* arg);
-int com_mac_block_compute(char* arg);
-int com_mac_block_update(char* arg);
-int com_mac_validate(char* arg);
-
-typedef struct {
- char* name;
- uint16_t val;
-} aid_t;
-
-extern const aid_t AIDs[];
+typedef int (*cmd_func_t)(char**,size_t);
 
 typedef struct {
   char *name;       // The command
@@ -142,11 +33,119 @@ typedef struct {
 
 extern const command_t commands[];
 
+
 // Lookup a command by name. Return a ptr to the command function, or
 // NULL if the command isn't found.
 const command_t* find_command(const char *name);
 
 // Any command starting with '.' - path spec
 int exec_path_command(const char *line);
+
+
+// Print help command
+int com_help(char* argv[], size_t argc);
+
+// Exit mfterm command
+int com_quit(char* argv[], size_t argc);
+
+// Misc routines
+int com_version(char* argv[], size_t argc);
+int com_devices(char* argv[], size_t argc);
+
+// Settings
+int com_set(char* argv[], size_t argc);
+int com_set_keys(char* argv[], size_t argc);
+int com_set_size(char* argv[], size_t argc);
+int com_set_device(char* argv[], size_t argc);
+
+// Load/Save tag file operations
+int com_load_tag(char* argv[], size_t argc);
+int com_save_tag(char* argv[], size_t argc);
+
+// Safely clear (zero) commands (preserve keys, access bits, block0)
+int com_reset_tag(char* argv[], size_t argc);
+int com_clear_all(char* argv[], size_t argc);
+int com_clear_sector(char* argv[], size_t argc);
+int com_clear_block(char* argv[], size_t argc);
+
+// Read/Write tag NFC operations
+int com_read_block(char* argv[], size_t argc);
+int com_read_sector(char* argv[], size_t argc);
+int com_write_block(char* argv[], size_t argc);
+int com_write_sector(char* argv[], size_t argc);
+int com_write_mod(char* argv[], size_t argc);
+
+// Ident card
+int com_ident(char* argv[], size_t argc);
+int com_check_tag(char* argv[], size_t argc);
+int com_fix_tag(char* argv[], size_t argc);
+
+// Tag print commands
+int com_print_blocks(char* argv[], size_t argc);
+int com_print_sectors(char* argv[], size_t argc);
+int com_print_keys(char* argv[], size_t argc);
+int com_print_perm(char* argv[], size_t argc);
+
+// Tag set (value) command
+int com_edit(char* argv[], size_t argc);
+int com_edit_hex(char* argv[], size_t argc);
+int com_edit_uid(char* argv[], size_t argc);
+int com_edit_key(char* argv[], size_t argc);
+int com_edit_perm(char* argv[], size_t argc);
+int com_edit_mod(char* argv[], size_t argc);
+
+// NDEF commands
+int com_ndef(char* argv[], size_t argc);
+int com_ndef_put(char* argv[], size_t argc);
+
+// MAD commands
+int com_mad(char* argv[], size_t argc);
+int com_mad_size(char* argv[], size_t argc);
+int com_mad_put(char* argv[], size_t argc);
+int com_mad_info(char* argv[], size_t argc);
+int com_mad_init(char* argv[], size_t argc);
+int com_mad_crc(char* argv[], size_t argc);
+
+// setting commands
+int com_set(char* argv[], size_t argc);
+int com_set_auth(char* argv[], size_t argc);
+int com_set_device(char* argv[], size_t argc);
+int com_set_size(char* argv[], size_t argc);
+
+// GEN1 card commands
+int com_gen1_wipe(char* argv[], size_t argc);
+
+// GEN3 card commands
+int com_gen3_writeuid(char* argv[], size_t argc);
+int com_gen3_write0(char* argv[], size_t argc);
+int com_gen3_lock(char* argv[], size_t argc);
+
+// Key operations
+int com_auth_load(char* argv[], size_t argc);
+int com_auth_save(char* argv[], size_t argc);
+int com_auth_clear(char* argv[], size_t argc);
+int com_auth_put(char* argv[], size_t argc);
+int com_auth_import(char* argv[], size_t argc);
+int com_auth_export(char* argv[], size_t argc);
+int com_auth_print(char* argv[], size_t argc);
+int com_auth_test(char* argv[], size_t argc);
+
+// Dictionary operations
+int com_dict_load(char* argv[], size_t argc);
+int com_dict_clear(char* argv[], size_t argc);
+int com_dict_attack(char* argv[], size_t argc);
+int com_dict_add(char* argv[], size_t argc);
+int com_dict_print(char* argv[], size_t argc);
+
+// Specification operations
+int com_spec_load(char* argv[], size_t argc);
+int com_spec_clear(char* argv[], size_t argc);
+int com_spec_print(char* argv[], size_t argc);
+
+// MAC operations
+int com_mac_key_get_set(char* argv[], size_t argc);
+int com_mac_block_compute(char* argv[], size_t argc);
+int com_mac_block_update(char* argv[], size_t argc);
+int com_mac_validate(char* argv[], size_t argc);
 
 #endif

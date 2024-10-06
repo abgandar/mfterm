@@ -27,6 +27,8 @@ mfterm_SOURCES =                \
   term_cmd.h term_cmd.c         \
   util.h util.c                 \
   tag.h tag.c                   \
+  ndef.h ndef.c                   \
+  mad.h mad.c                   \
   mifare.h mifare.c             \
   mifare_ctrl.h mifare_ctrl.c   \
   dictionary.h dictionary.c     \

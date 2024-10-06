@@ -104,16 +104,21 @@ void parse_cmdline(int argc, char** argv) {
     }
   }
 
+  char* av[2] = { 0 };
+
   // If a tag file was specified, load it
-  if (tag_file != NULL && com_load_tag(tag_file))
+  av[0] = tag_file;
+  if (tag_file != NULL && com_load_tag(av, 1))
     exit(0);
 
   // If a keys file was specified, load it
-  if (keys_file != NULL && com_keys_load(keys_file))
+  av[0] = keys_file;
+  if (keys_file != NULL && com_auth_load(av, 1))
     exit(0);
 
   // If a dictionary file was specified, load it
-  if (dict_file != NULL && com_dict_load(dict_file))
+  av[0] = dict_file;
+  if (dict_file != NULL && com_dict_load(av, 1))
     exit(0);
 
   // Default is to do nothing, just enter the terminal
@@ -159,12 +164,30 @@ int execute_line (char* line) {
   line += strlen(command->name);
   line = trim(line);
 
-  return (*(command->func))(line);
+  // pre-parse arguments
+  char* argv[128], *next;
+  size_t argc = 0;
+  while (argc < 128 && (argv[argc] = strqtok(line, &next))) {
+    if (!next) {
+      fprintf (stderr, "%s: unbalanced quotes.\n", line);
+      return -1;
+    }
+    argc++;
+    line = next;
+  }
+  if (argc == 128) {
+    fprintf (stderr, "%s: Too many arguments.\n", line);
+    return -1;
+  }
+
+  return (*(command->func))(argv, argc);
 }
 
 void initialize_readline()
 {
   rl_readline_name = "MFT";
+  rl_filename_quote_characters = " ";
+  rl_completer_quote_characters = "\"";
   rl_attempted_completion_function = (rl_completion_func_t*)mft_completion;
   using_history();
   // read history file

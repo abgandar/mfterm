@@ -60,3 +60,90 @@ void print_ascii_rendering(const unsigned char* data, size_t nbytes, const char 
       printf("%c", (data[i] >= 32 && data[i] < 127) ? data[i] : nonascii);
     }
 }
+
+// Parse a string of hex bytes in the form xx
+// returns 1 if more bytes available, -1 if invalid character
+int parse_hex_str(const char* str, uint8_t res[], size_t* len) {
+  const char* s = str + strspn(str, " ");
+  size_t c = 0;
+
+  while (*s != '\0' && c < *len) {
+    if (s[1] == '\0') {
+      *len = c;
+      return -1;  // incomplete byte
+    }
+    char* end;
+    char tmp[3] = {0};
+    tmp[0] = s[0];
+    tmp[1] = s[1];
+    long v = strtol(tmp, &end, 16);
+    if (*end != '\0') {
+      *len = c;
+      return -1;  // invalid character
+    }
+    res[c++] = (uint8_t)v;
+    s += 2;
+    s += strspn(s, " ");
+  }
+  *len = c;
+  return *s == '\0' ? 0 : 1;
+}
+
+// helper function to read a key ignoring any extra characters
+uint8_t* parse_key(uint8_t* key, const char* str) {
+  if (!key || !str)
+    return NULL;
+
+  size_t len = 6;
+  parse_hex_str(str, key, &len);
+  if (len != 6)
+    return NULL;
+  else
+    return key;
+}
+
+// Read next quoted string argument
+// (ret,end)
+// NULL,NULL: end of string
+// x,NULL: quoted string not terminated
+char* strqtok(char* str, char** end) {
+  if (!str) {
+    if (end) *end = NULL;
+    return NULL;
+  }
+  str += strspn(str, " ");
+  if (*str == '\0') {
+    if (end) *end = NULL;
+    return NULL;
+  }
+  char delim;
+  if (*str == '"') {
+    delim = '"';
+    str++;
+  } else {
+    delim = ' ';
+  }
+  char* b = str, *res = str;
+  int escape = 0;
+  while (*str != '\0') {
+    if (!escape && *str == delim) {
+      break;
+    }
+    if (!escape && *str == '\\') {
+      escape = 1;
+      str++;
+      continue;
+    }
+    *b++ = *str++;
+    escape = 0;
+  };
+  if (end) {
+    if (*str == '\0') {
+      *end = delim==' ' ? str : NULL;   // unclosed quotes: return NULL
+    } else {
+      *end = str + 1 + strspn(str+1, " ");
+    }
+  }
+  *b = '\0';
+  return res;
+}

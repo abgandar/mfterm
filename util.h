@@ -24,6 +24,8 @@
  * fileman.c (GPLv3). Copyright (C) 1987-2009 Free Software Foundation, Inc
  */
 
+#include <stdint.h>
+
 /* Strip whitespace from the start and end of STRING.  Return a pointer
    into STRING. */
 char* trim(char* string);
@@ -36,5 +38,14 @@ void print_hex_array_sep(const unsigned char* data, size_t nbytes, const char* s
 
 // Print binary data as ascii - replace non printable chars with nonascii
 void print_ascii_rendering(const unsigned char* data, size_t nbytes, const char nonascii);
+
+// tokenize quoted strings
+char* strqtok(char* str, char** end);
+
+// Parse hex string
+int parse_hex_str(const char* str, uint8_t res[], size_t* len);
+
+// helper function to read a key ignoring extra characters
+uint8_t* read_key(uint8_t* key, const char* str);
 
 #endif

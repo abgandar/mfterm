@@ -54,6 +54,7 @@
 #include "config.h"
 #include "mifare.h"
 #include "tag.h"
+#include "util.h"
 #include "mifare_ctrl.h"
 
 settings_t settings = { "", "AB", "1K" };
@@ -702,7 +703,8 @@ bool mf_dictionary_attack_internal(mf_tag_t* tag) {
 
     printf("  A Key: ");
     if (key_a) {
-      printf("%s\n", sprint_key(key_a));
+      print_hex_array(key_a, 6);
+      printf("\n");
 
       // Optimize dictionary by moving key to the front
       dictionary_add(key_a);
@@ -717,7 +719,8 @@ bool mf_dictionary_attack_internal(mf_tag_t* tag) {
 
     printf("  B Key: ");
     if (key_b) {
-      printf("%s\n", sprint_key(key_b));
+      print_hex_array(key_b, 6);
+      printf("\n");
 
       // Optimize dictionary by moving key to the front
       dictionary_add(key_b);
@@ -748,12 +751,16 @@ bool mf_test_auth_internal(const mf_tag_t* keys, size_t s1, size_t s2, mf_key_ty
     if( key_type == MF_KEY_A || key_type == MF_KEY_AB )
     {
       key = key_from_tag(keys, MF_KEY_A, block);
-      printf("%02zx  A  %s  %s\n", sector, sprint_key(key), mf_authenticate(block, key, MF_KEY_A) ? "Success" : "Failure");
+      printf("%02zx  A  ", sector);
+      print_hex_array(key, 6);
+      printf("  %s\n", mf_authenticate(block, key, MF_KEY_A) ? "Success" : "Failure");
     }
     if( key_type == MF_KEY_B || key_type == MF_KEY_AB )
     {
       key = key_from_tag(keys, MF_KEY_B, block);
-      printf("%02zx  B  %s  %s\n", sector, sprint_key(key), mf_authenticate(block, key, MF_KEY_B) ? "Success" : "Failure");
+      printf("%02zx  B  ", sector);
+      print_hex_array(key, 6);
+      printf("  %s\n", mf_authenticate(block, key, MF_KEY_B) ? "Success" : "Failure");
     }
   }
 

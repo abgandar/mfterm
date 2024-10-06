@@ -40,7 +40,7 @@ comment        #[^\n]*
 %%
 
 {key}          {
-                 read_key(key_token, dp_text);
+                 parse_key(key_token, dp_text);
                  return DT_KEY;
                }
 {comment}      {} // eat comments
