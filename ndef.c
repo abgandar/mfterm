@@ -227,3 +227,8 @@ int ndef_put_sectors(mf_tag_t* tag, size_t s1, size_t s2, const uint8_t* ndef, c
   free(tlv);
   return 0;
 }
+
+int ndef_print(mf_tag_t* tag) {
+    printf("Not yet implemented\n");
+    return -1;
+}

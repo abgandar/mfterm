@@ -29,10 +29,12 @@ typedef struct {
 
 extern const aid_t AIDs[];
 
+void mad_calc_crc(mf_tag_t* tag, uint8_t crcs[2]);
 int mad_crc(mf_tag_t* tag);
 int mad_set_info(mf_tag_t* tag, size_t sector);
 int mad_put_aid(mf_tag_t* tag, size_t sector, uint16_t aid);
 int mad_init(mf_tag_t* tag, mf_size_t size);
 int mad_size(mf_tag_t* tag, mf_size_t size);
+int mad_print(mf_tag_t* tag);
 
 #endif

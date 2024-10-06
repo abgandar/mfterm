@@ -48,25 +48,31 @@ static uint8_t do_crc(uint8_t c, const uint8_t v) {
   return c;
 }
 
-int mad_crc(mf_tag_t* tag) {
+void mad_calc_crc(mf_tag_t* tag, uint8_t crcs[2]) {
   uint8_t crc = 0xc7;
   for (int i = 1; i < 16; i++)
     crc = do_crc(crc, tag->amb[0x01].mbd.abtData[i]);
   for (int i = 0; i < 16; i++)
     crc = do_crc(crc, tag->amb[0x02].mbd.abtData[i]);
-  tag->amb[0x01].mbd.abtData[0] = crc;
+  crcs[0] = crc;
 
+  crc = 0xc7;
+  for (int i = 1; i < 16; i++)
+    crc = do_crc(crc, tag->amb[0x40].mbd.abtData[i]);
+  for (int i = 0; i < 16; i++)
+    crc = do_crc(crc, tag->amb[0x41].mbd.abtData[i]);
+  for (int i = 0; i < 16; i++)
+    crc = do_crc(crc, tag->amb[0x42].mbd.abtData[i]);
+  crcs[1] = crc;
+}
+
+int mad_crc(mf_tag_t* tag) {
+  uint8_t crcs[2];
+  mad_calc_crc(tag, crcs);
+  tag->amb[0x01].mbd.abtData[0] = crcs[0];
   // version 2 MAD?
-  if ((tag->amb[3].mbt.abtAccessBits[3] & 0x03) == 0x02) {
-    crc = 0xc7;
-    for (int i = 1; i < 16; i++)
-      crc = do_crc(crc, tag->amb[0x40].mbd.abtData[i]);
-    for (int i = 0; i < 16; i++)
-      crc = do_crc(crc, tag->amb[0x41].mbd.abtData[i]);
-    for (int i = 0; i < 16; i++)
-      crc = do_crc(crc, tag->amb[0x42].mbd.abtData[i]);
-    tag->amb[0x40].mbd.abtData[0] = crc;
-  }
+  if ((tag->amb[3].mbt.abtAccessBits[3] & 0x03) == 0x02)
+    tag->amb[0x40].mbd.abtData[0] = crcs[1];
 
   return 0;
 }
@@ -131,4 +137,9 @@ int mad_size(mf_tag_t* tag, mf_size_t size) {
 
   printf("MAD version set to %hhd\n", flag);
   return mad_crc(tag);
+}
+
+int mad_print(mf_tag_t* tag) {
+    printf("Not yet implemented\n");
+    return -1;
 }

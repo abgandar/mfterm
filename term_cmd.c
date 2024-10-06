@@ -694,7 +694,11 @@ int com_edit_mod(char* argv[], size_t argc) {
 }
 
 int com_ndef(char* argv[], size_t argc) {
-  printf("Not yet implemented\n");
+  if (argc > 0) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+  ndef_print(&current_tag);
   return -1;
 }
 
@@ -790,9 +794,12 @@ int com_ndef_put(char* argv[], size_t argc) {
 
 // MAD functions
 int com_mad(char* argv[], size_t argc) {
-  //return mad_print(&current_tag);
-  printf("Not yet implemented\n");
-  return -1;
+  if (argc > 0) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  return mad_print(&current_tag);
 }
 
 int com_mad_size(char* argv[], size_t argc) {
