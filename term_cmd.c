@@ -707,7 +707,7 @@ int com_ndef(char* argv[], size_t argc) {
 int com_ndef_put(char* argv[], size_t argc) {
   if (argc < 3) {
     printf("Expecting at least three argument: #sector type data...\n");
-    printf("  T language text\n  U url\n  M mime-type content\n");
+    printf("  M mime-type data\n  T language text\n  U url\n  A app-name\n  W ssid password\n  E ext-type data\n");
     return -1;
   }
 
@@ -729,7 +729,7 @@ int com_ndef_put(char* argv[], size_t argc) {
   while (*argv) {
     char *type_str = *argv, type = type_str[0];
     if (type_str[1] != '\0') {
-      printf("Invalid type (U|T|M): %s\n", type_str);
+      printf("Invalid type (U|T|M|A|W|E): %s\n", type_str);
       return -1;
     }
     argv++;
@@ -737,6 +737,14 @@ int com_ndef_put(char* argv[], size_t argc) {
     uint8_t *buf = NULL;
     size_t bsize = 0;
     switch (type) {
+      case 'A':
+        if (!argv[0]) {
+          printf("Not enough arguments for record type %c\n", type);
+          return -1;
+        }
+        ndef_android_app_record(argv[0], &buf, &bsize);
+        argv++;
+        break;
       case 'U':
         if (!argv[0]) {
           printf("Not enough arguments for record type %c\n", type);
@@ -753,16 +761,32 @@ int com_ndef_put(char* argv[], size_t argc) {
         ndef_text_record(argv[0], argv[1], &buf, &bsize);
         argv += 2;
         break;
+      case 'W':
+        if (!argv[0] || !argv[1]) {
+          printf("Not enough arguments for record type %c\n", type);
+          return -1;
+        }
+        ndef_wifi_record(argv[0], argv[1], &buf, &bsize);
+        argv += 2;
+        break;
       case 'M':
         if (!argv[0] || !argv[1]) {
           printf("Not enough arguments for record type %c\n", type);
           return -1;
         }
-        ndef_mime_record(argv[0], argv[1], &buf, &bsize);
+        ndef_mime_record(argv[0], (uint8_t*)argv[1], strlen(argv[1]), &buf, &bsize);
+        argv += 2;
+        break;
+      case 'E':
+        if (!argv[0] || !argv[1]) {
+          printf("Not enough arguments for record type %c\n", type);
+          return -1;
+        }
+        ndef_external_record(argv[0], (uint8_t*)argv[1], strlen(argv[1]), &buf, &bsize);
         argv += 2;
         break;
       default:
-        printf("Invalid type (U|T|M): %s\n", type_str);
+        printf("Invalid type (U|T|M|A|W|E): %s\n", type_str);
         return -1;
     };
 

@@ -107,7 +107,7 @@ int ndef_URI_record(const char* uri, uint8_t** ndef, size_t* size) {
     *p++ = (uint8_t)((pl>> 8) & 0xFF);
     *p++ = (uint8_t)((pl    ) & 0xFF);
   }
-  *p++ = NDEF_URI;          // type
+  *p++ = 'U';               // type
   *p++ = uri_prefix;        // payload: prefix code
   memcpy(p, data, pl-1);    // payload: uri
 
@@ -140,7 +140,7 @@ int ndef_text_record(const char* lang, const char* text, uint8_t** ndef, size_t*
     *p++ = (uint8_t)((pl>> 8) & 0xFF);
     *p++ = (uint8_t)((pl    ) & 0xFF);
   }
-  *p++ = NDEF_TEXT;         // type
+  *p++ = 'T';                   // type
   *p++ = (uint8_t)(0x00 | ll);  // payload: header (UTF-8)
   memcpy(p, lang, ll);          // payload: lang
   p += ll;
@@ -149,13 +149,14 @@ int ndef_text_record(const char* lang, const char* text, uint8_t** ndef, size_t*
   return 0;
 }
 
-int ndef_mime_record(const char* mime, const char* data, uint8_t** ndef, size_t* size) {
-  size_t ml = strlen(mime), dl = strlen(data), pl = ml+dl;
+int ndef_mime_record(const char* mime, const uint8_t* data, size_t dl, uint8_t** ndef, size_t* size) {
+  size_t ml = strlen(mime);
   if (ml > 255) {
     *size = 0;
     *ndef = NULL;
     return -1;
   }
+  const size_t pl = ml+dl;
   bool sr = pl <= 0xFF;
   *size = pl + (sr ? 3 : 6);
   *ndef = malloc(*size);
@@ -180,6 +181,88 @@ int ndef_mime_record(const char* mime, const char* data, uint8_t** ndef, size_t*
   memcpy(p, data, dl);          // payload: data
 
   return 0;
+}
+
+int ndef_external_record(const char* type, const uint8_t* data, size_t dl, uint8_t** ndef, size_t* size) {
+  size_t tl = strlen(type), pl = tl+dl;
+  bool sr = pl <= 0xFF;
+  *size = pl + (sr ? 3 : 6);
+  *ndef = malloc(*size);
+  if (!*ndef) {
+    *size = 0;
+    return -1;
+  }
+
+  uint8_t* p = *ndef;
+  *p++ = sr ? (NDEF_MB | NDEF_ME | NDEF_SR | TNF_EXTERNAL) : (NDEF_MB | NDEF_ME | TNF_EXTERNAL);  // flags
+  *p++ = (uint8_t)tl;       // type length
+  if (sr) {
+    *p++ = (uint8_t)dl;     // payload length
+  } else {
+    *p++ = (uint8_t)((dl>>24) & 0xFF);
+    *p++ = (uint8_t)((dl>>16) & 0xFF);
+    *p++ = (uint8_t)((dl>> 8) & 0xFF);
+    *p++ = (uint8_t)((dl    ) & 0xFF);
+  }
+  memcpy(p, type, tl);          // type
+  p += tl;
+  memcpy(p, data, dl);          // payload
+
+  return 0;
+}
+
+int ndef_android_app_record(const char* app, uint8_t** ndef, size_t* size) {
+  return ndef_external_record("android.com:pkg", (uint8_t*)app, strlen(app), ndef, size);
+}
+
+static inline void put_uint16(uint8_t** p, const uint16_t v) {
+  *((*p)++) = (uint8_t)(v>>8);
+  *((*p)++) = (uint8_t)(v);
+}
+
+int ndef_wifi_record(const char* ssid, const char* password, uint8_t** ndef, size_t* size) {
+  const char* mime = "application/vnd.wfa.wsc";
+  const uint8_t mac[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+  const size_t ssid_l = strlen(ssid), password_l = strlen(password);
+  if (password_l > 64) {
+    *size = 0;
+    *ndef = NULL;
+    return -1;
+  }
+  const size_t len = ssid_l+password_l+34;
+  uint8_t* data = malloc(len);
+  if (!data) {
+    *size = 0;
+    *ndef = NULL;
+    return -1;
+  }
+
+  uint8_t* p = data;
+  put_uint16(&p, 0x100e);   // credential tag
+  put_uint16(&p, (uint16_t)(len-4));   // payload length w/o credential tag & length
+  put_uint16(&p, 0x1003);   // auth type tag
+  put_uint16(&p, 2);
+  put_uint16(&p, 0x0020);   // WPA2 PSK (0x0001 = open, 0x0010 = WPA2 EAP, 0x0020 = WPA2 PSK)
+  put_uint16(&p, 0x100F);   // encryption type tag
+  put_uint16(&p, 2);
+  put_uint16(&p, 0x0008);   // AES
+  put_uint16(&p, 0x1045);   // ssid tag
+  put_uint16(&p, (uint16_t)ssid_l);
+  memcpy(p, ssid, ssid_l);
+  p += ssid_l;
+  put_uint16(&p, 0x1027);   // network key tag
+  put_uint16(&p, (uint16_t)password_l);
+  memcpy(p, password, password_l);
+  p += password_l;
+  put_uint16(&p, 0x1020);   // MAC (multicast)
+  put_uint16(&p, sizeof(mac));
+  memcpy(p, mac, sizeof(mac));
+  p += sizeof(mac);
+
+  const int res = ndef_mime_record(mime, data, len, ndef, size);
+
+  free(data);
+  return res;
 }
 
 int ndef_put_sectors(mf_tag_t* tag, size_t s1, size_t s2, const uint8_t* ndef, const size_t size, bool ro) {
