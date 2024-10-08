@@ -89,8 +89,8 @@ int parse_hex_str(const char* str, uint8_t res[], size_t* len) {
   return *s == '\0' ? 0 : 1;
 }
 
-// helper function to read a key ignoring any extra characters
-uint8_t* parse_key(uint8_t* key, const char* str) {
+// helper function to read a key ignoring any extra characters (used in dictionary parser)
+uint8_t* read_key(uint8_t* key, const char* str) {
   if (!key || !str)
     return NULL;
 

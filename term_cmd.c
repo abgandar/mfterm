@@ -148,6 +148,9 @@ mf_key_type_t parse_key_type(const char* str, const char* def);
 // Parse a key size (1K|4K)
 mf_size_t parse_size(const char* str, const char* def);
 
+// parse key from name or hex string
+int parse_key(const char* str, uint8_t key[6]);
+
 // Compute the MAC using the current_mac_key
 int com_mac_block_compute_impl(char* argv[], size_t argc, int update);
 
@@ -575,7 +578,9 @@ int com_edit_key(char* argv[], size_t argc) {
   if (argc != 3) {
     printf("Expecting three arguments: #sector A|B|AB key\n  key name    value\n");
     for (const named_key_t *k = known_keys; k->name; k++) {
-      printf("  %-10s  %02hhx %02hhx %02hhx %02hhx %02hhx %02hhx\n", k->name, k->key[0], k->key[1], k->key[2], k->key[3], k->key[4], k->key[5]);
+      printf("  %-10s  ", k->name);
+      print_hex_array_sep(k->key, 6, " ");
+      printf("\n");
     }
     return -1;
   }
@@ -597,23 +602,14 @@ int com_edit_key(char* argv[], size_t argc) {
   }
 
   uint8_t key[6];
-  size_t len = 0;
-  for (const named_key_t *k = known_keys; k->name; k++) {
-    if (strcmp(k->name, argv[2]) == 0) {
-      memcpy(key, k->key, 6);
-      len = 6;
-      break;
+  if (parse_key(argv[2], key)) {
+    printf("Invalid key (expecting 6 bytes or known key name): %s\n  key name    value\n", argv[2]);
+    for (const named_key_t *k = known_keys; k->name; k++) {
+      printf("  %-10s  ", k->name);
+      print_hex_array_sep(k->key, 6, " ");
+      printf("\n");
     }
-  }
-  if (len != 6) {
-    len = 6;
-    if (parse_hex_str(argv[2], key, &len) != 0 || len != 6) {
-      printf("Invalid key (expecting 6 bytes or known key name): %s\n  key name    value\n", argv[2]);
-      for (const named_key_t *k = known_keys; k->name; k++) {
-        printf("  %-10s  %02hhx %02hhx %02hhx %02hhx %02hhx %02hhx\n", k->name, k->key[0], k->key[1], k->key[2], k->key[3], k->key[4], k->key[5]);
-      }
-      return -1;
-    }
+    return -1;
   }
 
   for( size_t sector = s1; sector <= s2; sector++ ) {
@@ -1218,9 +1214,12 @@ int com_auth_put(char* argv[], size_t argc) {
   }
 
   uint8_t key[6];
-  size_t len = 6;
-  if (parse_hex_str(key_str, key, &len) != 0 || len != 6) {
-    printf("Invalid key (expecting 6 bytes): %s\n", key_str);
+  if (parse_key(key_str, key)) {
+    printf("Invalid key (expecting 6 bytes or known key name): %s\n  key name    value\n", key_str);
+    for (const named_key_t *k = known_keys; k->name; k++) {
+      printf("  %-10s  ", k->name);
+      print_hex_array_sep(k->key, 6, " ");
+      printf("\n");    }
     return -1;
   }
 
@@ -1388,9 +1387,12 @@ int com_dict_add(char* argv[], size_t argc) {
   }
 
   uint8_t key[6];
-  size_t len = 6;
-  if (parse_hex_str(argv[0], key, &len) != 0 || len != 6) {
-    printf("Invalid key (expecting 6 bytes): %s\n", argv[0]);
+  if (parse_key(argv[0], key)) {
+    printf("Invalid key (expecting 6 bytes or known key name): %s\n  key name    value\n", argv[0]);
+    for (const named_key_t *k = known_keys; k->name; k++) {
+      printf("  %-10s  ", k->name);
+      print_hex_array_sep(k->key, 6, " ");
+      printf("\n");    }
     return -1;
   }
 
@@ -1662,4 +1664,22 @@ int parse_blocks(const char* str, size_t* a, size_t* b, const char* def) {
   *a = 0;
   *b = block_count(parse_size(settings.size, NULL))-1;
   return parse_range(str, a, b, 0);
+}
+
+int parse_key(const char* str, uint8_t key[6]) {
+  // check known keys
+  for (const named_key_t *k = known_keys; k->name; k++) {
+    if (strcmp(k->name, str) == 0) {
+      memcpy(key, k->key, 6);
+      return 0;
+    }
+  }
+
+  // parse hex key
+  size_t len = 6;
+  if (parse_hex_str(str, key, &len) != 0 || len != 6) {
+    return -1;
+  }
+
+  return 0;
 }
