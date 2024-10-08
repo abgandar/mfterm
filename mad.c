@@ -252,3 +252,31 @@ uint16_t mad_get_aid(mf_tag_t* tag, size_t sector) {
   else
     return 0;
 }
+
+// find first sector with given aid or 0 if not found
+size_t mad_find_sector(mf_tag_t* tag, uint16_t aid) {
+  const uint8_t gpb1 = tag->amb[0x03].mbt.abtAccessBits[3];
+  const uint8_t version = gpb1 & 0x03;
+
+  if (!(gpb1 & 0x80)) {
+    return 0;
+  }
+
+  for (int i = 1; i < 16; i++) {
+    uint16_t val;
+    val = (uint16_t)(tag->amb[0x01+(2*i)/16].mbd.abtData[(2*i)%16] | tag->amb[0x01+(2*i)/16].mbd.abtData[(2*i)%16+1]<<8);
+    if (val == aid)
+      return (size_t)i;
+  }
+
+  if (version == 2) {
+    for (int i = 1; i < 24; i++) {
+      uint16_t val;
+      val = (uint16_t)(tag->amb[0x40+(2*i)/16].mbd.abtData[(2*i)%16] | tag->amb[0x40+(2*i)/16].mbd.abtData[(2*i)%16+1]<<8);
+      if (val == aid)
+        return (size_t)i+16;
+    }
+  }
+
+  return 0;
+}

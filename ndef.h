@@ -48,6 +48,6 @@ int ndef_external_record(const char* type, const uint8_t* data, size_t dl, uint8
 int ndef_android_app_record(const char* app, uint8_t** ndef, size_t* size);
 int ndef_wifi_record(const char* ssid, const char* password, uint8_t** ndef, size_t* size);
 int ndef_perm(mf_tag_t* tag, size_t s1, size_t s2, bool ro);
-int ndef_print(mf_tag_t* tag);
+int ndef_print(mf_tag_t* tag, size_t sector);
 
 #endif

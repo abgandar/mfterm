@@ -23,6 +23,7 @@
 #include "mifare.h"
 #include "util.h"
 #include "ndef.h"
+#include "mad.h"
 
 // access bits for RW and RO NDEF sectors (VVvvRRWW)
 static const uint8_t ndef_ac_rw[] = {0x7F, 0x07, 0x88, 0b01000000 };
@@ -323,7 +324,59 @@ int ndef_perm(mf_tag_t* tag, size_t s1, size_t s2, bool ro) {
   return 0;
 }
 
-int ndef_print(mf_tag_t* tag) {
-  printf("Not yet implemented\n");
-  return -1;
+int ndef_print_records(uint8_t* ndef, size_t len) {
+  // parse stream of records, printing them one by one
+  printf("NDEF records found\n");
+  return 0;
+}
+
+int ndef_print(mf_tag_t* tag, size_t sector) {
+  if (sector == 0)
+    sector = mad_find_sector(tag, 0xe103);  // find first NDEF sector
+  if (sector == 0) {
+    printf("No NDEF sectors found in MAD\n");
+    return -1;
+  }
+
+  // copy out data from tag into contiguous buffer for simplicity
+  uint8_t buf[4096] = {0}, *p = buf, *end;
+  for (size_t s = sector; s < 0x28; s++) {
+    if (s == 0x10) continue;
+    size_t h = sector_to_header(sector), c = sector_size(h);
+    memcpy(p, tag->amb[h].mbd.abtData, 16*(c-1));
+    p += 16*(c-1);
+  }
+  end = p;
+
+  // find first NDEF TLV tag by iterating through all data bytes
+  p = buf;
+  size_t len;
+  while (p < end) {
+    const uint8_t tag = *p++;
+    switch(tag) {
+      case 0x00:
+        continue;   // empty TLV, just skip
+      case 0xfe:
+        // end of records TLV, we're done
+        printf("No NDEF TLV found in sector\n");
+        return -1;
+    }
+    // any other TLV: read size (potentially read 3 bytes past end, OK as over-allocated)
+    if (*p < 0xFF) {
+      len = *p++;
+    } else {
+      len = (p[1]<<8) & (p[2]);
+      p += 3;
+    }
+    if (tag == 0x03) break;    // found it!
+    p += len; // not what we want, skip
+  }
+
+  if(p >= end) {
+    // end of records TLV, we're done
+    printf("No NDEF TLV found in sector\n");
+    return -1;
+  }
+
+  return ndef_print_records(p, len);
 }

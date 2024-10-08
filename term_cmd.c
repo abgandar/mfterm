@@ -83,8 +83,8 @@ const command_t commands[] = {
   { "edit perm",    com_edit_perm,     0, 1, "#block C1C2C3: Set tag block permissions" },
   { "edit mod",     com_edit_mod,      0, 1, "1|0: Set load modulation strength (1=strong, 0=normal)" },
 
-  { "ndef",         com_ndef,          0, 1, "#sector: Show NDEF record(s) in sector(s)" },
-  { "ndef put",     com_ndef_put,      0, 1, "#sector (U URL | T LANG TEXT | M MIME CONTENT)...: Place NDEF record(s) in sector(s)" },
+  { "ndef",         com_ndef,          0, 1, "#sector: Print NDEF record(s)" },
+  { "ndef put",     com_ndef_put,      0, 1, "#sector (U URL | T LANG TEXT | M MIME DATA | W SSID PASSWD | E TYPE DATA | A APP)...: Place NDEF record(s) in sector(s)" },
   { "ndef perm",    com_ndef_perm,     0, 1, "#sector RW|RO: Set permissions to read-only or read-write" },
 
   { "mad",          com_mad,           0, 1, "Print tag MAD" },
@@ -126,6 +126,13 @@ const command_t commands[] = {
   { (char *)NULL,   (cmd_func_t)NULL,      0, 0, (char *)NULL }
 };
 
+const named_key_t known_keys[] = {
+  { "NDEF_A",  {0xd3, 0xf7, 0xd3, 0xf7, 0xd3, 0xf7} },
+  { "MAD_A",   {0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5} },
+  { "DEFAULT", {0xff, 0xff, 0xff, 0xff, 0xff, 0xff} },
+  { NULL, {0} }
+};
+
 // Parse a range of positive numbers in given base A-B (with either number ommitted leaving corresponding a and b unchanged)
 int parse_range(const char* str, size_t* a, size_t* b, int base);
 
@@ -158,7 +165,7 @@ const command_t* find_command(const char *name) {
 
   for (size_t i = 0; commands[i].name; ++i) {
     size_t l = strlen(commands[i].name);
-    if (l > cmd_len && strncmp(name, commands[i].name, l) == 0) {
+    if (l > cmd_len && strncmp(name, commands[i].name, l) == 0 && (name[l] == ' ' || name[l] == '\0')) {
       cmd = &commands[i];
       cmd_len = l;
     }
@@ -512,7 +519,7 @@ int com_edit_hex(char* argv[], size_t argc) {
 
 int com_edit_impl(char* argv[], size_t argc, bool hex) {
   if (argc != 3) {
-    printf("Expecting three arguments: #block offset hex\n");
+    printf("Expecting three arguments: #block offset data\n");
     return -1;
   }
 
@@ -566,7 +573,10 @@ int com_edit_impl(char* argv[], size_t argc, bool hex) {
 
 int com_edit_key(char* argv[], size_t argc) {
   if (argc != 3) {
-    printf("Expecting three arguments: #sector A|B|AB key\n");
+    printf("Expecting three arguments: #sector A|B|AB key\n  key name    value\n");
+    for (const named_key_t *k = known_keys; k->name; k++) {
+      printf("  %-10s  %02hhx %02hhx %02hhx %02hhx %02hhx %02hhx\n", k->name, k->key[0], k->key[1], k->key[2], k->key[3], k->key[4], k->key[5]);
+    }
     return -1;
   }
 
@@ -587,10 +597,23 @@ int com_edit_key(char* argv[], size_t argc) {
   }
 
   uint8_t key[6];
-  size_t len = 6;
-  if (parse_hex_str(argv[2], key, &len) != 0 || len != 6) {
-    printf("Invalid key (expecting 6 bytes): %s\n", argv[2]);
-    return -1;
+  size_t len = 0;
+  for (const named_key_t *k = known_keys; k->name; k++) {
+    if (strcmp(k->name, argv[2]) == 0) {
+      memcpy(key, k->key, 6);
+      len = 6;
+      break;
+    }
+  }
+  if (len != 6) {
+    len = 6;
+    if (parse_hex_str(argv[2], key, &len) != 0 || len != 6) {
+      printf("Invalid key (expecting 6 bytes or known key name): %s\n  key name    value\n", argv[2]);
+      for (const named_key_t *k = known_keys; k->name; k++) {
+        printf("  %-10s  %02hhx %02hhx %02hhx %02hhx %02hhx %02hhx\n", k->name, k->key[0], k->key[1], k->key[2], k->key[3], k->key[4], k->key[5]);
+      }
+      return -1;
+    }
   }
 
   for( size_t sector = s1; sector <= s2; sector++ ) {
@@ -696,12 +719,22 @@ int com_edit_mod(char* argv[], size_t argc) {
 }
 
 int com_ndef(char* argv[], size_t argc) {
-  if (argc > 0) {
+  if (argc > 1) {
     printf("Too many arguments\n");
     return -1;
   }
-  ndef_print(&current_tag);
-  return -1;
+
+  size_t s1, s2;
+  if( parse_sectors( argv[0], &s1, &s2, settings.size ) != 0 ) {
+    printf("Invalid sector range: %s\n", argv[0] ? argv[0] : settings.size);
+    return -1;
+  }
+  if (s2 > 39 || s1 > s2) {
+    printf("Invalid sector range: %lu-%lu\n", s1, s2);
+    return -1;
+  }
+
+  return ndef_print(&current_tag, s1);
 }
 
 int com_ndef_put(char* argv[], size_t argc) {

@@ -42,5 +42,6 @@ int mad_perm(mf_tag_t* tag, bool ro);
 int mad_get_version(mf_tag_t* tag);
 bool mad_is_valid(mf_tag_t* tag);
 uint16_t mad_get_aid(mf_tag_t* tag, size_t sector);
+size_t mad_find_sector(mf_tag_t* tag, uint16_t aid);
 
 #endif

@@ -33,6 +33,13 @@ typedef struct {
 
 extern const command_t commands[];
 
+typedef struct {
+  const char* name;
+  const uint8_t key[6];
+} named_key_t;
+
+extern const named_key_t known_keys[];
+
 
 // Lookup a command by name. Return a ptr to the command function, or
 // NULL if the command isn't found.
@@ -40,7 +47,6 @@ const command_t* find_command(const char *name);
 
 // Any command starting with '.' - path spec
 int exec_path_command(const char *line);
-
 
 // Print help command
 int com_help(char* argv[], size_t argc);
