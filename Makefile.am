@@ -35,7 +35,7 @@ mfterm_SOURCES =                \
   spec_syntax.h spec_syntax.c   \
   mac.h mac.c
 
-mfterm_LDADD = libsp.a -lreadline -lcrypto -lnfc
+mfterm_LDADD = libsp.a
 
 man1_MANS = mfterm.man
 dist_man1_MANS = mfterm.man
