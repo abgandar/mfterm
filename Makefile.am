@@ -35,7 +35,7 @@ mfterm_SOURCES =                \
   spec_syntax.h spec_syntax.c   \
   mac.h mac.c
 
-mfterm_LDADD = libdp.a libsp.a -lreadline -lnfc -lcrypto
+mfterm_LDADD = libsp.a -lreadline -lcrypto -lnfc
 
 man1_MANS = mfterm.man
 dist_man1_MANS = mfterm.man
@@ -43,11 +43,7 @@ dist_man1_MANS = mfterm.man
 # We create two convenience libraries fot the parser targets. This is
 # to allow us to use different flags (since automake doesn't support
 # per file, but only per target flags).
-noinst_LIBRARIES = libdp.a libsp.a
-
-libdp_a_SOURCES = dictionary_parser.l
-libdp_a_LFLAGS = --prefix=dp_ -o$(LEX_OUTPUT_ROOT).c
-libdp_a_CFLAGS = -g -std=c99 -Wall -Wno-unused-function -Wno-unused-but-set-variable -Wno-implicit-function-declaration
+noinst_LIBRARIES = libsp.a
 
 libsp_a_SOURCES = spec_tokenizer.l spec_parser.y
 libsp_a_LFLAGS = --prefix=sp_ -o$(LEX_OUTPUT_ROOT).c

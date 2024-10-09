@@ -56,4 +56,7 @@ int dictionary_add(const uint8_t* key);
  */
 key_list_t* dictionary_get();
 
+// read keys from text file into dictionary
+int dictionary_import(FILE* input);
+
 #endif

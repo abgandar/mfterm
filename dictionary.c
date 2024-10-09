@@ -28,7 +28,6 @@ static key_list_t* key_list = NULL;
 key_list_t* kl_add(key_list_t** list, const uint8_t* key);
 void kl_clear(key_list_t** list);
 key_list_t* kl_make_node(const uint8_t* key);
-int key_cmp(const uint8_t* k1, const uint8_t* k2);
 
 void dictionary_clear() {
   kl_clear(&key_list);
@@ -40,6 +39,24 @@ int dictionary_add(const uint8_t* key) {
 
 key_list_t* dictionary_get() {
   return key_list;
+}
+
+int dictionary_import(FILE* input) {
+  char *str = NULL;
+  size_t len = 0;
+  while(getline(&str, &len, input) >= 0) {
+    if(str[strspn(str," \t\n")] == '#' || str[strspn(str," \t\n")] == '\0') continue;
+    char *s = str;
+    int read;
+    uint8_t key[6];
+    while(sscanf(s, "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%n", key, key+1, key+2, key+3, key+4, key+5, &read) == 6) {
+      dictionary_add(key);
+      s += read;
+    }
+  }
+  if(str) free(str);
+
+  return 0;
 }
 
 key_list_t* kl_add(key_list_t** list, const uint8_t* key) {
@@ -55,7 +72,7 @@ key_list_t* kl_add(key_list_t** list, const uint8_t* key) {
   key_list_t* last = NULL;
   while(it) {
     // Don't add duplicates, but move the key first in the list
-    if (key_cmp(it->key, key) == 0) {
+    if (memcmp(it->key, key, 6) == 0) {
       if (last) {
         last->next = it->next;
         it->next = *list;
@@ -90,12 +107,4 @@ key_list_t* kl_make_node(const uint8_t* key) {
   memcpy((void*)new_node, key, 6);
   new_node->next = NULL;
   return new_node;
-}
-
-int key_cmp(const uint8_t* k1, const uint8_t* k2) {
-  for (int i = 0; i < 6; ++i) {
-    if (k1[i] != k2[i])
-      return -1;
-  }
-  return 0;
 }
