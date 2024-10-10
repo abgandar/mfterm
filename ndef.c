@@ -324,9 +324,167 @@ int ndef_perm(mf_tag_t* tag, size_t s1, size_t s2, bool ro) {
   return 0;
 }
 
-int ndef_print_records(uint8_t* ndef, size_t len) {
+void ndef_print_unknown_record(const ndef_record_t* r) {
+  if(r->type_len > 0) {
+    printf("type:\n");
+    print_hex_array_ascii(r->type, r->type_len, 19);
+  }
+  if(r->id_len > 0) {
+    printf("id:\n");
+    print_hex_array_ascii(r->id, r->id_len, 19);
+  }
+  if(r->len > 0) {
+    printf("data:\n");
+    print_hex_array_ascii(r->data, r->len, 19);
+  }
+}
+
+void ndef_print_external_record(const ndef_record_t* r) {
+  printf("External NDEF record\n");
+  if(r->type_len > 0) {
+    printf("type: ");
+    fwrite(r->type, r->type_len, 1, stdout);
+    printf("\n");
+  }
+  if(r->id_len > 0) {
+    printf("id:\n");
+    print_hex_array_ascii(r->id, r->id_len, 19);
+  }
+  if(r->len > 0) {
+    printf("data:\n");
+    print_hex_array_ascii(r->data, r->len, 19);
+  }
+}
+
+void ndef_print_wk_record(const ndef_record_t* r) {
+  const uint8_t type = r->type[0];
+  switch(type) {
+    case 'T':
+      printf("Well-known NDEF TEXT record\n");
+      if(r->len > 1){
+        const uint8_t header = r->data[0], ll = header&0x3F;
+        if(r->len >= ll) {
+          printf("language: ");
+          fwrite(r->data+1, ll, 1, stdout);
+          printf("\ntext: ");
+          fwrite(r->data+1+ll, r->len-ll, 1, stdout);
+          printf("\n");
+        }
+      }
+      break;
+    case 'U':
+      printf("Well-known NDEF URI record\n");
+      if(r->len > 1){
+        uint8_t prefix = r->data[0];
+        printf("%s", prefix < sizeof(NDEF_uri_prefix)/sizeof(NDEF_uri_prefix[0]) ? NDEF_uri_prefix[prefix] : "[unknown prefix code]");
+        fwrite(r->data+1, r->len-1, 1, stdout);
+        printf("\n");
+      }
+      break;
+    default:
+      printf("Unknown well-known NDEF record\n");
+      ndef_print_unknown_record(r);
+  }
+}
+
+void ndef_print_uri_record(const ndef_record_t* r) {
+  printf("URI NDEF record\n");
+  if(r->type_len > 0) {
+    printf("URI type: ");
+    fwrite(r->type, r->type_len, 1, stdout);
+    printf("\n");
+  }
+  if(r->id_len > 0) {
+    printf("id:\n");
+    print_hex_array_ascii(r->id, r->id_len, 19);
+  }
+  if(r->len > 0) {
+    printf("data:\n");
+    print_hex_array_ascii(r->data, r->len, 19);
+  }
+}
+
+void ndef_print_mime_record(const ndef_record_t* r) {
+  printf("MIME NDEF record\n");
+  if(r->type_len > 0) {
+    printf("mime-type: ");
+    fwrite(r->type, r->type_len, 1, stdout);
+    printf("\n");
+  }
+  if(r->id_len > 0) {
+    printf("id:\n");
+    print_hex_array_ascii(r->id, r->id_len, 19);
+  }
+  if(r->len > 0) {
+    printf("data:\n");
+    print_hex_array_ascii(r->data, r->len, 19);
+  }
+}
+
+int ndef_print_records(const uint8_t* ndef, size_t len) {
   // parse stream of records, printing them one by one
   printf("NDEF records found\n");
+  const uint8_t *p = ndef, *end = ndef+len;
+  ndef_record_t r;
+  do {
+    memset(&r, 0, sizeof(r));
+    r.flags = p[0];
+    if(r.flags & NDEF_SR) {
+      if(end-p < 3) return -1;
+      r.type_len = p[1];
+      r.len = p[2];
+      p += 3;
+    } else {
+      if(end-p < 6) return -1;
+      r.type_len = p[1];
+      r.len = (uint32_t)(p[2]<<24 | p[3]<<16 | p[4]<<8 | p[5]);
+      p += 6;
+    }
+    if(r.flags & NDEF_IL) {
+      if(end-p < 1) return -1;
+      r.id_len = p[0];
+      p++;
+    }
+    if(end-p < r.id_len+r.len+r.type_len) return -1;
+    if(r.type_len > 0) {
+      r.type = p;
+      p += r.type_len;
+    }
+    if(r.id_len > 0) {
+      r.id = p;
+      p += r.id_len;
+    }
+    if(r.len > 0) {
+      r.data = p;
+      p += r.len;
+    }
+    switch(r.flags & 0x07) {
+      case TNF_EXTERNAL:
+        ndef_print_external_record(&r);
+        break;
+      case TNF_MIME:
+        ndef_print_mime_record(&r);
+        break;
+      case TNF_URI:
+        ndef_print_uri_record(&r);
+        break;
+      case TNF_WELL_KNOWN:
+        ndef_print_wk_record(&r);
+        break;
+      case TNF_EMPTY:
+        printf("Empty record\n");
+        continue;
+      case TNF_UNCHANGED:
+        printf("Chunked record (not supported)\n");
+        break;
+      case TNF_RESERVED:
+      case TNF_UNKNOWN:
+      default:
+        printf("Unknown NDEF record\n");
+        ndef_print_unknown_record(&r);
+    }
+    printf("\n");
+  } while(!(r.flags & NDEF_ME) && p<end);
   return 0;
 }
 
@@ -342,7 +500,7 @@ int ndef_print(mf_tag_t* tag, size_t sector) {
   uint8_t buf[4096] = {0}, *p = buf, *end;
   for (size_t s = sector; s < 0x28; s++) {
     if (s == 0x10) continue;
-    size_t h = sector_to_header(sector), c = sector_size(h);
+    size_t h = sector_to_header(s), c = sector_size(h);
     memcpy(p, tag->amb[h].mbd.abtData, 16*(c-1));
     p += 16*(c-1);
   }

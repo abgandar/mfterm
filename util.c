@@ -61,6 +61,26 @@ void print_ascii_rendering(const unsigned char* data, size_t nbytes, const char 
     }
 }
 
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
+
+void print_hex_array_ascii(const unsigned char* data, size_t nbytes, size_t width) {
+  const uint8_t* d = data;
+  for(ssize_t s = (ssize_t)nbytes; s > 0; s -= width, d += width) {
+    print_hex_array_sep(d, MIN(width, (size_t)s), " ");
+    for(size_t i = MIN(width, (size_t)s); i < width; i++) {
+      printf("   ");
+    }
+    printf(" [");
+    print_ascii_rendering(d, MIN(width, (size_t)s), '.');
+    for(size_t i = MIN(width, (size_t)s); i < width; i++) {
+      putc(' ', stdout);
+    }
+    printf("]\n");
+  }
+}
+
+#undef MIN
+
 // Parse a string of hex bytes in the form xx
 // returns 1 if more bytes available, -1 if invalid character
 int parse_hex_str(const char* str, uint8_t res[], size_t* len) {

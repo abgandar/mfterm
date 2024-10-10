@@ -39,6 +39,17 @@ typedef enum {
   NDEF_MB = 0x80
 } NDEF_flags;
 
+// struct holding a record
+typedef struct {
+  uint8_t flags;
+  uint8_t type_len;
+  uint32_t len;
+  uint8_t id_len;
+  const uint8_t *type;
+  const uint8_t *id;
+  const uint8_t *data;
+} ndef_record_t;
+
 // NDEF functions
 int ndef_put_sectors(mf_tag_t* tag, size_t s1, size_t s2, const uint8_t* ndef, const size_t size, bool ro);
 int ndef_URI_record(const char* uri, uint8_t** ndef, size_t* size);

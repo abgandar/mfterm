@@ -36,6 +36,9 @@ void print_hex_array(const unsigned char* data, size_t nbytes);
 // Print a byte array in hex with the specified byte separation.
 void print_hex_array_sep(const unsigned char* data, size_t nbytes, const char* sep);
 
+// Print binary data as both hex and ascii side by side
+void print_hex_array_ascii(const unsigned char* data, size_t nbytes, size_t width);
+
 // Print binary data as ascii - replace non printable chars with nonascii
 void print_ascii_rendering(const unsigned char* data, size_t nbytes, const char nonascii);
 
