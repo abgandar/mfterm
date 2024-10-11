@@ -166,8 +166,8 @@ int execute_line (char* line) {
 
   // pre-parse arguments
   char* argv[128], *next;
-  size_t argc = 0;
-  while (argc < 128 && (argv[argc] = strqtok(line, &next))) {
+  size_t argc = 0, argl[128];
+  while (argc < 128 && (argv[argc] = strqtok(line, argl+argc, &next))) {
     if (!next) {
       fprintf (stderr, "%s: unbalanced quotes.\n", line);
       return -1;

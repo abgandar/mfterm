@@ -122,41 +122,105 @@ uint8_t* read_key(uint8_t* key, const char* str) {
     return key;
 }
 
+// convert hex character to value
+static uint8_t hexdigit(const unsigned char c) {
+  if(c >= '0' && c <= '9')
+    return c-'0';
+  else if(c >= 'a' && c <= 'f')
+    return c-'a'+10;
+  else if(c >= 'A' && c <= 'F')
+    return c-'A'+10;
+  else
+    return 255;
+}
+
 // Read next quoted string argument
 // (ret,end)
 // NULL,NULL: end of string
 // x,NULL: quoted string not terminated
-char* strqtok(char* str, char** end) {
-  if (!str) {
-    if (end) *end = NULL;
+char* strqtok(char* str, size_t* len, char** end) {
+  if(!str) {
+    if(end) *end = NULL;
+    if(len) *len = 0;
     return NULL;
   }
   str += strspn(str, " ");
-  if (*str == '\0') {
+  if(*str == '\0') {
     if (end) *end = NULL;
+    if(len) *len = 0;
     return NULL;
   }
   char delim;
-  if (*str == '"') {
+  if(*str == '"') {
     delim = '"';
     str++;
   } else {
     delim = ' ';
   }
   char* b = str, *res = str;
-  int escape = 0;
-  while (*str != '\0') {
-    if (!escape && *str == delim) {
+  int escape = 0, hex = 0;
+  while(*str != '\0') {
+    if(hex > 0) {
+      const uint8_t x = hexdigit((unsigned char)*str);
+      if(x == 255) {
+        if(hex > 1) b++;
+        hex = 0;
+      } else {
+        *b = (char)(*b<<4 | x);
+        hex++;
+        str++;
+        continue;
+      }
+    }
+    if(!escape && *str == delim) {
       break;
     }
-    if (!escape && *str == '\\') {
+    if(!escape && *str == '\\') {
       escape = 1;
       str++;
       continue;
     }
-    *b++ = *str++;
-    escape = 0;
+    if(escape) {
+      escape = 0;
+      switch(*str) {
+        case 'a':
+          *b++ = '\a';
+          break;
+        case 'b':
+          *b++ = '\b';
+          break;
+        case 'e':
+          *b++ = '\e';
+          break;
+        case 'f':
+          *b++ = '\f';
+          break;
+        case 'n':
+          *b++ = '\n';
+          break;
+        case 'r':
+          *b++ = '\r';
+          break;
+        case 't':
+          *b++ = '\t';
+          break;
+        case 'v':
+          *b++ = '\v';
+          break;
+        case 'x':
+          hex = 1;
+          *b = 0;
+          break;
+        default:
+          *b++ = *str;
+          break;
+      }
+      str++;
+    } else {
+      *b++ = *str++;
+    }
   };
+  if(hex > 1) b++;
   if (end) {
     if (*str == '\0') {
       *end = delim==' ' ? str : NULL;   // unclosed quotes: return NULL
@@ -164,6 +228,7 @@ char* strqtok(char* str, char** end) {
       *end = str + 1 + strspn(str+1, " ");
     }
   }
+  if(len) *len = (size_t)(b-res);
   *b = '\0';
   return res;
 }

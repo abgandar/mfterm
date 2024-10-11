@@ -43,7 +43,7 @@ void print_hex_array_ascii(const unsigned char* data, size_t nbytes, size_t widt
 void print_ascii_rendering(const unsigned char* data, size_t nbytes, const char nonascii);
 
 // tokenize quoted strings
-char* strqtok(char* str, char** end);
+char* strqtok(char* str, size_t* len, char** end);
 
 // Parse hex string
 int parse_hex_str(const char* str, uint8_t res[], size_t* len);
