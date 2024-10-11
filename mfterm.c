@@ -126,26 +126,26 @@ void parse_cmdline(int argc, char** argv) {
 
 // Request user input until stop_intput_loop_ == 0
 void input_loop() {
-  char *line, *s, *p = NULL;
+  char *line, *s, *prev = NULL;
+  int res = 0;
   while (stop_input_loop_ == 0) {
-    line = readline ("$ ");
-
+    line = readline (res == 0 ? "\x01\e[32m\x02$ \x01\e[0m\x02" : "\x01\e[31m\x02$ \x01\e[0m\x02");
     if (!line)
       break;
-
     s = trim(line);
 
     if (*s) {
-      if (!p || strcmp(s, p) != 0) {
+      if(!prev || strcmp(s, prev) != 0)
         add_history(s);
-      }
-      execute_line(s);
-      if(p) free(p);
-      p = strdup(s);
+      if(prev)
+        free(prev);
+      prev = strdup(s);
+      res = execute_line(s);
     }
     free(line);
   }
-  if(p) free(p);
+  if(prev)
+    free(prev);
 }
 
 /* Execute a command line. */
