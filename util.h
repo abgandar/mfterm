@@ -48,7 +48,4 @@ char* strqtok(char* str, size_t* len, char** end);
 // Parse hex string
 int parse_hex_str(const char* str, uint8_t res[], size_t* len);
 
-// helper function to read a key ignoring extra characters
-uint8_t* read_key(uint8_t* key, const char* str);
-
 #endif

@@ -109,19 +109,6 @@ int parse_hex_str(const char* str, uint8_t res[], size_t* len) {
   return *s == '\0' ? 0 : 1;
 }
 
-// helper function to read a key ignoring any extra characters (used in dictionary parser)
-uint8_t* read_key(uint8_t* key, const char* str) {
-  if (!key || !str)
-    return NULL;
-
-  size_t len = 6;
-  parse_hex_str(str, key, &len);
-  if (len != 6)
-    return NULL;
-  else
-    return key;
-}
-
 // convert hex character to value
 static uint8_t hexdigit(const unsigned char c) {
   if(c >= '0' && c <= '9')
@@ -135,9 +122,9 @@ static uint8_t hexdigit(const unsigned char c) {
 }
 
 // Read next quoted string argument
-// (ret,end)
-// NULL,NULL: end of string
-// x,NULL: quoted string not terminated
+// (ret,len,end)
+// NULL,0,NULL: end of string or no string
+// x,l,NULL: quoted string not terminated
 char* strqtok(char* str, size_t* len, char** end) {
   if(!str) {
     if(end) *end = NULL;
@@ -221,7 +208,7 @@ char* strqtok(char* str, size_t* len, char** end) {
     }
   };
   if(hex > 1) b++;
-  if (end) {
+  if(end) {
     if (*str == '\0') {
       *end = delim==' ' ? str : NULL;   // unclosed quotes: return NULL
     } else {
