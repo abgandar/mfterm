@@ -26,10 +26,6 @@
 
 #include <stdint.h>
 
-/* Strip whitespace from the start and end of STRING.  Return a pointer
-   into STRING. */
-char* trim(char* string);
-
 // Print a byte array in hex without byte separation
 void print_hex_array(const unsigned char* data, size_t nbytes);
 

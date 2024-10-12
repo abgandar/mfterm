@@ -140,7 +140,7 @@ void input_loop() {
     line = readline (res == 0 ? "\x01\e[32m\x02$ \x01\e[0m\x02" : "\x01\e[31m\x02$ \x01\e[0m\x02");
     if (!line)
       break;
-    s = trim(line);
+    s = line + strspn(line, " \t\n\r"); // skip leading whitespace
 
     if (*s) {
       if(!prev || strcmp(s, prev) != 0)
@@ -170,7 +170,7 @@ int execute_line (char* line) {
 
   // Skip past command and ws to the arguments
   line += strlen(command->name);
-  line = trim(line);
+  line += strspn(line, " \t\n\r");
 
   // pre-parse arguments
   char* argv[128], *next;

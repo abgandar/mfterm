@@ -27,24 +27,6 @@
 #include <ctype.h>
 #include "util.h"
 
-/* Strip whitespace from the start and end of STRING.  Return a pointer
-   into STRING. */
-char* trim(char* string) {
-  char* s = string;
-  while (isspace(*s))
-    ++s;
-
-  if (*s == 0)
-    return s;
-
-  char* t = s + strlen(s) - 1;
-  while (t > s && isspace(*t))
-    --t;
-  *++t = '\0';
-
-  return s;
-}
-
 void print_hex_array(const unsigned char* data, size_t nbytes) {
   print_hex_array_sep(data, nbytes, NULL);
 }
