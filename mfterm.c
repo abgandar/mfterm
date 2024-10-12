@@ -105,23 +105,31 @@ void parse_cmdline(int argc, char** argv) {
   }
 
   char* av[2] = { 0 };
+  size_t al[2] = { 0 };
 
   // If a tag file was specified, load it
-  av[0] = tag_file;
-  if (tag_file != NULL && com_load_tag(av, 1))
-    exit(0);
+  if(tag_file) {
+    av[0] = tag_file;
+    al[0] = strlen(tag_file);
+    if (com_load_tag(av, al, 1))
+      exit(0);
+  }
 
   // If a keys file was specified, load it
-  av[0] = keys_file;
-  if (keys_file != NULL && com_auth_load(av, 1))
-    exit(0);
+  if(keys_file) {
+    av[0] = keys_file;
+    al[0] = strlen(keys_file);
+    if (keys_file != NULL && com_auth_load(av, al, 1))
+      exit(0);
+  }
 
   // If a dictionary file was specified, load it
-  av[0] = dict_file;
-  if (dict_file != NULL && com_dict_load(av, 1))
-    exit(0);
-
-  // Default is to do nothing, just enter the terminal
+  if(dict_file) {
+    av[0] = dict_file;
+    al[0] = strlen(dict_file);
+    if (dict_file != NULL && com_dict_load(av, al, 1))
+      exit(0);
+  }
 }
 
 // Request user input until stop_intput_loop_ == 0
@@ -169,18 +177,18 @@ int execute_line (char* line) {
   size_t argc = 0, argl[128];
   while (argc < 128 && (argv[argc] = strqtok(line, argl+argc, &next))) {
     if (!next) {
-      fprintf (stderr, "%s: unbalanced quotes.\n", line);
+      fprintf (stderr, "Unbalanced quotes or invalid hex string.\n");
       return -1;
     }
     argc++;
     line = next;
   }
   if (argc == 128) {
-    fprintf (stderr, "%s: Too many arguments.\n", line);
+    fprintf (stderr, "Too many arguments: %s\n", line);
     return -1;
   }
 
-  return (*(command->func))(argv, argc);
+  return (*(command->func))(argv, argl, argc);
 }
 
 void initialize_readline()

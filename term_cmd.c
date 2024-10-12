@@ -76,10 +76,9 @@ const command_t commands[] = {
   { "print keys",   com_print_keys,    0, 1, "#sector: Print tag sector keys" },
   { "print perm",   com_print_perm,    0, 1, "#sector: Print tag sector permissions" },
 
-  { "edit",         com_edit,          0, 1, "#block #offset ASCII: Set tag block data" },
-  { "edit hex",     com_edit_hex,      0, 1, "#block #offset hex: Set tag block data" },
-  { "edit uid",     com_edit_uid,      0, 1, "xxxxxxxx[xxxxxx]: Set tag UID" },
-  { "edit key",     com_edit_key,      0, 1, "#sector A|B|AB xxxxxxxxxxxx: Set tag sector key" },
+  { "edit",         com_edit,          0, 1, "#block #offset data: Set tag block data" },
+  { "edit uid",     com_edit_uid,      0, 1, "'xxxxxxxx[xxxxxx]': Set tag UID" },
+  { "edit key",     com_edit_key,      0, 1, "#sector A|B|AB 'xxxxxxxxxxxx': Set tag sector key" },
   { "edit perm",    com_edit_perm,     0, 1, "#block C1C2C3: Set tag block permissions" },
   { "edit mod",     com_edit_mod,      0, 1, "1|0: Set load modulation strength (1=strong, 0=normal)" },
 
@@ -103,33 +102,33 @@ const command_t commands[] = {
   { "auth load",    com_auth_load,     1, 1, "Load auth keys from file" },
   { "auth save",    com_auth_save,     1, 1, "Save auth keys to file" },
   { "auth clear",   com_auth_clear,    0, 1, "Clear auth keys" },
-  { "auth put",     com_auth_put,      0, 1, "#sector A|B|AB xxxxxxxxxxxx: Set auth key" },
+  { "auth put",     com_auth_put,      0, 1, "#sector A|B|AB 'xxxxxxxxxxxx': Set auth key" },
   { "auth import",  com_auth_import,   0, 1, "#sector A|B|AB: Import sector auth keys from tag" },
   { "auth export",  com_auth_export,   0, 1, "#sector A|B|AB: Export sector auth keys to tag" },
   { "auth test",    com_auth_test,     0, 1, "#sector A|B|AB: Try to authenticate with auth keys" },
 
   { "dict",         com_dict_print,    0, 1, "Print the key dictionary" },
-  { "dict load",    com_dict_load,     1, 1, "Load a dictionary key file" },
-  { "dict add",     com_dict_add,      0, 1, "Add key to key dictionary" },
+  { "dict load",    com_dict_load,     1, 1, "file: Load a dictionary key file" },
+  { "dict add",     com_dict_add,      0, 1, "'xxxxxxxxxxxx': Add key to key dictionary" },
   { "dict clear",   com_dict_clear,    0, 1, "Clear the key dictionary" },
-  { "dict attack",  com_dict_attack,   0, 1, "Find keys of a physical tag"},
+  { "dict attack",  com_dict_attack,   0, 1, "Try dictionary keys against a physical tag"},
 
   { "spec",         com_spec_print,    0, 1, "Print the specification" },
-  { "spec load",    com_spec_load,     1, 1, "Load a specification file" },
+  { "spec load",    com_spec_load,     1, 1, "file: Load a specification file" },
   { "spec clear",   com_spec_clear,    0, 1, "Unload the specification" },
 
-  { "mac key",      com_mac_key_get_set,   0, 1, "<k0..k7> : Get or set MAC key" },
-  { "mac compute",  com_mac_block_compute, 0, 1, "#block : Compute block MAC" },
-  { "mac update",   com_mac_block_update,  0, 1, "#block : Update block MAC" },
-  { "mac validate", com_mac_validate,      0, 1, "1k|4k : Validates block MAC of the whole tag" },
+  { "mac key",      com_mac_key_get_set,   0, 1, "'xxxxxxxxxxxxxxxx': Get or set MAC key" },
+  { "mac compute",  com_mac_block_compute, 0, 1, "#block: Compute block MAC" },
+  { "mac update",   com_mac_block_update,  0, 1, "#block: Update block MAC" },
+  { "mac validate", com_mac_validate,      0, 1, "1K|4K: Validates block MAC of the whole tag" },
 
   { (char *)NULL,   (cmd_func_t)NULL,      0, 0, (char *)NULL }
 };
 
+// known keys. Names must NOT be 6 bytes long else keys representing those 6 bytes get replaced!
 const named_key_t known_keys[] = {
-  { "NDEF_A",  {0xd3, 0xf7, 0xd3, 0xf7, 0xd3, 0xf7} },
-  { "MAD_A",   {0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5} },
-//  { "MAD_B",   {0xb0, 0xb1, 0xb2, 0xb3, 0xb4, 0xb5} },    // not official
+  { "NDEF",    {0xd3, 0xf7, 0xd3, 0xf7, 0xd3, 0xf7} },
+  { "MAD",     {0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5} },
   { "DEFAULT", {0xff, 0xff, 0xff, 0xff, 0xff, 0xff} },
   { NULL, {0} }
 };
@@ -150,13 +149,13 @@ mf_key_type_t parse_key_type(const char* str, const char* def);
 mf_size_t parse_size(const char* str, const char* def);
 
 // parse key from name or hex string
-int parse_key(const char* str, uint8_t key[6]);
+int parse_key(const char* str, const size_t len, uint8_t key[6]);
 
 // Compute the MAC using the current_mac_key
-int com_mac_block_compute_impl(char* argv[], size_t argc, int update);
+int com_mac_block_compute_impl(char* argv[], size_t argl[], size_t argc, int update);
 
 // edit implementation
-int com_edit_impl(char* argv[], size_t argc, bool hex);
+int com_edit_impl(char* argv[], size_t argl[], size_t argc, bool hex);
 
 
 /**
@@ -210,7 +209,7 @@ int exec_path_command(const char *line) {
  * Command functions
  */
 
-int com_help(char* argv[], size_t argc) {
+int com_help(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     int found = 0;
     for (char** arg = argv; *arg; arg++) {
@@ -236,12 +235,12 @@ int com_help(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_quit(char* argv[], size_t argc) {
+int com_quit(char* argv[], size_t argl[], size_t argc) {
   stop_input_loop();
   return 0;
 }
 
-int com_load_tag(char* argv[], size_t argc) {
+int com_load_tag(char* argv[], size_t argl[], size_t argc) {
   if (argc != 1 || *argv[0] == '\0') {
     printf("Expecting a single file name\n");
     return -1;
@@ -255,7 +254,7 @@ int com_load_tag(char* argv[], size_t argc) {
   return res;
 }
 
-int com_save_tag(char* argv[], size_t argc) {
+int com_save_tag(char* argv[], size_t argl[], size_t argc) {
   if (argc != 1 || *argv[0] == '\0') {
     printf("Expecting a single file name\n");
     return -1;
@@ -269,7 +268,7 @@ int com_save_tag(char* argv[], size_t argc) {
   return res;
 }
 
-int com_reset_tag(char* argv[], size_t argc) {
+int com_reset_tag(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -279,7 +278,7 @@ int com_reset_tag(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_clear_all(char* argv[], size_t argc) {
+int com_clear_all(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -289,7 +288,7 @@ int com_clear_all(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_clear_block(char* argv[], size_t argc) {
+int com_clear_block(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Expecting a single block range\n");
     return -1;
@@ -309,7 +308,7 @@ int com_clear_block(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_clear_sector(char* argv[], size_t argc) {
+int com_clear_sector(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Expecting a single sector range\n");
     return -1;
@@ -331,7 +330,7 @@ int com_clear_sector(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_read_block(char* argv[], size_t argc) {
+int com_read_block(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Expecting a single block range\n");
     return -1;
@@ -350,7 +349,7 @@ int com_read_block(char* argv[], size_t argc) {
   return mf_read_blocks(&current_tag, parse_key_type(settings.auth, NULL), b1, b2);
 }
 
-int com_read_sector(char* argv[], size_t argc) {
+int com_read_sector(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Expecting a single sector range\n");
     return -1;
@@ -371,7 +370,7 @@ int com_read_sector(char* argv[], size_t argc) {
   return mf_read_blocks(&current_tag, parse_key_type(settings.auth, NULL), s1, s2);
 }
 
-int com_write_block(char* argv[], size_t argc) {
+int com_write_block(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Expecting a single block range\n");
     return -1;
@@ -390,7 +389,7 @@ int com_write_block(char* argv[], size_t argc) {
   return mf_write_blocks(&current_tag, parse_key_type(settings.auth, NULL), b1, b2);
 }
 
-int com_write_sector(char* argv[], size_t argc) {
+int com_write_sector(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Expecting a single sector range\n");
     return -1;
@@ -411,7 +410,7 @@ int com_write_sector(char* argv[], size_t argc) {
   return mf_write_blocks(&current_tag, parse_key_type(settings.auth, NULL), s1, s2);
 }
 
-int com_write_mod(char* argv[], size_t argc) {
+int com_write_mod(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -424,7 +423,7 @@ int com_write_mod(char* argv[], size_t argc) {
   return res;
 }
 
-int com_ident(char* argv[], size_t argc) {
+int com_ident(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -433,7 +432,7 @@ int com_ident(char* argv[], size_t argc) {
   return mf_ident_tag();
 }
 
-int com_check_tag(char* argv[], size_t argc) {
+int com_check_tag(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -443,7 +442,7 @@ int com_check_tag(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_fix_tag(char* argv[], size_t argc) {
+int com_fix_tag(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -453,7 +452,7 @@ int com_fix_tag(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_devices(char* argv[], size_t argc) {
+int com_devices(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -462,7 +461,7 @@ int com_devices(char* argv[], size_t argc) {
   return mf_devices();
 }
 
-int com_version(char* argv[], size_t argc) {
+int com_version(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -471,7 +470,7 @@ int com_version(char* argv[], size_t argc) {
   return mf_version();
 }
 
-int com_print_blocks(char* argv[], size_t argc) {
+int com_print_blocks(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Expecting a single block range\n");
     return -1;
@@ -491,7 +490,7 @@ int com_print_blocks(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_print_sectors(char* argv[], size_t argc) {
+int com_print_sectors(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Expecting a single sector range\n");
     return -1;
@@ -513,15 +512,7 @@ int com_print_sectors(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_edit(char* argv[], size_t argc) {
-  return com_edit_impl(argv, argc, false);
-}
-
-int com_edit_hex(char* argv[], size_t argc) {
-  return com_edit_impl(argv, argc, true);
-}
-
-int com_edit_impl(char* argv[], size_t argc, bool hex) {
+int com_edit(char* argv[], size_t argl[], size_t argc) {
   if (argc != 3) {
     printf("Expecting three arguments: #block offset data\n");
     return -1;
@@ -548,34 +539,22 @@ int com_edit_impl(char* argv[], size_t argc, bool hex) {
     return -1;
   }
 
-  uint8_t bytes[0x10];
-  size_t count = 0x10;
-  if (hex) {
-    if (parse_hex_str(argv[2], bytes, &count) != 0 || count+offset > 16) {
-      printf("Hex string invalid or too long: %s\n", argv[2]);
-      return -1;
-    }
-  } else {
-    count = strlen(argv[2]);
-    if (count+offset > 16) {
-      printf("ASCII string too long: %s\n", argv[2]);
-      return -1;
-    }
-    memcpy(bytes, argv[2], count);
+  if (argl[2]+offset > 16) {
+    printf("Data string too long\n");
+    return -1;
   }
-
-  if (count == 0) {
-    printf("No bytes specified.\n");
+  if (argl[2] == 0) {
+    printf("Empty data string specified.\n");
     return -1;
   }
 
   for( size_t block = b1; block <= b2; block++ )
-    memcpy( current_tag.amb[block].mbd.abtData+offset, bytes, count );
+    memcpy( current_tag.amb[block].mbd.abtData+offset, argv[2], argl[2] );
 
   return 0;
 }
 
-int com_edit_key(char* argv[], size_t argc) {
+int com_edit_key(char* argv[], size_t argl[], size_t argc) {
   if (argc != 3) {
     printf("Expecting three arguments: #sector A|B|AB key\n  key name    value\n");
     for (const named_key_t *k = known_keys; k->name; k++) {
@@ -603,7 +582,7 @@ int com_edit_key(char* argv[], size_t argc) {
   }
 
   uint8_t key[6];
-  if (parse_key(argv[2], key)) {
+  if (parse_key(argv[2], argl[2], key)) {
     printf("Invalid key (expecting 6 bytes or known key name): %s\n  key name    value\n", argv[2]);
     for (const named_key_t *k = known_keys; k->name; k++) {
       printf("  %-10s  ", k->name);
@@ -627,7 +606,7 @@ int com_edit_key(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_edit_perm(char* argv[], size_t argc) {
+int com_edit_perm(char* argv[], size_t argl[], size_t argc) {
   if (argc != 2) {
     printf("Expecting two arguments: #block C1C2C3\n");
     printf("C1 C2 C3  !   R   W   I   D   !  AR  AW  ACR ACW BR  BW\n"
@@ -679,25 +658,24 @@ int com_edit_perm(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_edit_uid(char* argv[], size_t argc) {
-  uint8_t uid[7];
-  size_t len = 7;
-  int i = parse_hex_str(argv[0], uid, &len);
-  if (argc != 1 || i != 0 || (len != 4 && len != 7)) {
-    printf("Expecting a single 4 or 7 byte hex string: %s\n", argv[0] ? argv[0] : "");
+int com_edit_uid(char* argv[], size_t argl[], size_t argc) {
+  if (argc != 1 || (argl[0] != 4 && argl[0] != 7)) {
+    printf("Expecting one single 4 or 7 byte uid\n");
     return -1;
   }
 
-  if( len == 4 ) {
+  uint8_t uid[7];
+  memcpy(uid, argv[0], argl[0]);
+  if( argl[0] == 4 ) {
     uid[4] = uid[0] ^ uid[1] ^ uid[2] ^ uid[3];
-    len = 5;
+    argl[0] = 5;
   }
 
-  memcpy( current_tag.amb[0].mbd.abtData, uid, len );
+  memcpy( current_tag.amb[0].mbd.abtData, uid, argl[0] );
   return 0;
 }
 
-int com_edit_mod(char* argv[], size_t argc) {
+int com_edit_mod(char* argv[], size_t argl[], size_t argc) {
   if (argc != 1) {
     printf("Expecting a single argument: 0|1\n");
     return -1;
@@ -715,7 +693,7 @@ int com_edit_mod(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_ndef(char* argv[], size_t argc) {
+int com_ndef(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Too many arguments\n");
     return -1;
@@ -734,7 +712,7 @@ int com_ndef(char* argv[], size_t argc) {
   return ndef_print(&current_tag, s1);
 }
 
-int com_ndef_put(char* argv[], size_t argc) {
+int com_ndef_put(char* argv[], size_t argl[], size_t argc) {
   if (argc < 3) {
     printf("Expecting at least three argument: #sector type data...\n");
     printf("  M mime-type data\n  T language text\n  U url\n  A app-name\n  W ssid password\n  E ext-type data\n");
@@ -756,6 +734,7 @@ int com_ndef_put(char* argv[], size_t argc) {
 
   // parse remaining arguments as NDEF records
   argv++;
+  argl++;
   while (*argv) {
     char *type_str = *argv, type = type_str[0];
     if (type_str[1] != '\0') {
@@ -763,6 +742,7 @@ int com_ndef_put(char* argv[], size_t argc) {
       return -1;
     }
     argv++;
+    argl++;
 
     uint8_t *buf = NULL;
     size_t bsize = 0;
@@ -774,6 +754,7 @@ int com_ndef_put(char* argv[], size_t argc) {
         }
         ndef_android_app_record(argv[0], &buf, &bsize);
         argv++;
+        argl++;
         break;
       case 'U':
         if (!argv[0]) {
@@ -782,6 +763,7 @@ int com_ndef_put(char* argv[], size_t argc) {
         }
         ndef_URI_record(argv[0], &buf, &bsize);
         argv++;
+        argl++;
         break;
       case 'T':
         if (!argv[0] || !argv[1]) {
@@ -790,6 +772,7 @@ int com_ndef_put(char* argv[], size_t argc) {
         }
         ndef_text_record(argv[0], argv[1], &buf, &bsize);
         argv += 2;
+        argl += 2;
         break;
       case 'W':
         if (!argv[0] || !argv[1]) {
@@ -798,22 +781,25 @@ int com_ndef_put(char* argv[], size_t argc) {
         }
         ndef_wifi_record(argv[0], argv[1], &buf, &bsize);
         argv += 2;
+        argl += 2;
         break;
       case 'M':
         if (!argv[0] || !argv[1]) {
           printf("Not enough arguments for record type %c\n", type);
           return -1;
         }
-        ndef_mime_record(argv[0], (uint8_t*)argv[1], strlen(argv[1]), &buf, &bsize);
+        ndef_mime_record(argv[0], (uint8_t*)argv[1], argl[1], &buf, &bsize);
         argv += 2;
+        argl += 2;
         break;
       case 'E':
         if (!argv[0] || !argv[1]) {
           printf("Not enough arguments for record type %c\n", type);
           return -1;
         }
-        ndef_external_record(argv[0], (uint8_t*)argv[1], strlen(argv[1]), &buf, &bsize);
+        ndef_external_record(argv[0], (uint8_t*)argv[1], argl[1], &buf, &bsize);
         argv += 2;
+        argl += 2;
         break;
       default:
         printf("Invalid type (U|T|M|A|W|E): %s\n", type_str);
@@ -848,7 +834,7 @@ int com_ndef_put(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_ndef_perm(char* argv[], size_t argc) {
+int com_ndef_perm(char* argv[], size_t argl[], size_t argc) {
   if (argc != 2) {
     printf("Expecting two arguments: #sector RO|RW\n");
     return -1;
@@ -878,7 +864,7 @@ int com_ndef_perm(char* argv[], size_t argc) {
 }
 
 // MAD functions
-int com_mad(char* argv[], size_t argc) {
+int com_mad(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -887,7 +873,7 @@ int com_mad(char* argv[], size_t argc) {
   return mad_print(&current_tag);
 }
 
-int com_mad_size(char* argv[], size_t argc) {
+int com_mad_size(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Expecting a single argument: 1K|4K\n");
     return -1;
@@ -901,7 +887,7 @@ int com_mad_size(char* argv[], size_t argc) {
   return mad_size(&current_tag, s);
 }
 
-int com_mad_put(char* argv[], size_t argc) {
+int com_mad_put(char* argv[], size_t argl[], size_t argc) {
   if (argc != 2) {
     printf("Expecting two arguments: #sector AID\n   AID name  value\n");
     for (const aid_t* aid = AIDs; aid->name; aid++)
@@ -944,7 +930,7 @@ int com_mad_put(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_mad_info(char* argv[], size_t argc) {
+int com_mad_info(char* argv[], size_t argl[], size_t argc) {
   if (argc != 1) {
     printf("Expecting a single argument: #sector\n");
     return -1;
@@ -960,7 +946,7 @@ int com_mad_info(char* argv[], size_t argc) {
   return mad_set_info(&current_tag, (size_t)s);
 }
 
-int com_mad_init(char* argv[], size_t argc) {
+int com_mad_init(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Expecting a single argument: 1K|4K\n");
     return -1;
@@ -974,7 +960,7 @@ int com_mad_init(char* argv[], size_t argc) {
   return mad_init(&current_tag, s);
 }
 
-int com_mad_crc(char* argv[], size_t argc) {
+int com_mad_crc(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -983,7 +969,7 @@ int com_mad_crc(char* argv[], size_t argc) {
   return mad_crc(&current_tag);
 }
 
-int com_mad_perm(char* argv[], size_t argc) {
+int com_mad_perm(char* argv[], size_t argl[], size_t argc) {
   if (argc != 1) {
     printf("Expecting one argument: RO|RW\n");
     return -1;
@@ -1002,7 +988,7 @@ int com_mad_perm(char* argv[], size_t argc) {
   return mad_perm(&current_tag, ro);
 }
 
-int com_gen1_wipe(char* argv[], size_t argc) {
+int com_gen1_wipe(char* argv[], size_t argl[], size_t argc) {
   if (argc != 1 || strcmp(argv[0], "YES!") != 0) {
     printf("This command permanently wipes the entire card! Provide a single argument saying YES! to proceed.\n");
     return -1;
@@ -1011,7 +997,7 @@ int com_gen1_wipe(char* argv[], size_t argc) {
   return mf_gen1_wipe();
 }
 
-int com_gen3_writeuid(char* argv[], size_t argc) {
+int com_gen3_writeuid(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -1020,7 +1006,7 @@ int com_gen3_writeuid(char* argv[], size_t argc) {
   return mf_gen3_setuid(current_tag.amb[0].mbd.abtData);
 }
 
-int com_gen3_write0(char* argv[], size_t argc) {
+int com_gen3_write0(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -1029,7 +1015,7 @@ int com_gen3_write0(char* argv[], size_t argc) {
   return mf_gen3_setblock0(current_tag.amb[0].mbd.abtData);
 }
 
-int com_gen3_lock(char* argv[], size_t argc) {
+int com_gen3_lock(char* argv[], size_t argl[], size_t argc) {
   if (argc != 1 || strcmp(argv[0], "YES!") != 0) {
     printf("This command permanently locks the card! Provide a single argument saying YES! to proceed.\n");
     return -1;
@@ -1038,7 +1024,7 @@ int com_gen3_lock(char* argv[], size_t argc) {
   return mf_gen3_lock();
 }
 
-int com_print_keys(char* argv[], size_t argc) {
+int com_print_keys(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Expecting a single sector range\n");
     return -1;
@@ -1058,7 +1044,7 @@ int com_print_keys(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_print_perm(char* argv[], size_t argc) {
+int com_print_perm(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Expecting a single sector range\n");
     return -1;
@@ -1080,7 +1066,7 @@ int com_print_perm(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_set(char* argv[], size_t argc) {
+int com_set(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -1092,7 +1078,7 @@ int com_set(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_set_auth(char* argv[], size_t argc) {
+int com_set_auth(char* argv[], size_t argl[], size_t argc) {
   if (argc != 1) {
     printf("Expecting a single argument: A|B|AB|*\n");
     return -1;
@@ -1115,7 +1101,7 @@ int com_set_auth(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_set_device(char* argv[], size_t argc) {
+int com_set_device(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Expecting a single argument: device\n");
     return -1;
@@ -1131,7 +1117,7 @@ int com_set_device(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_set_size(char* argv[], size_t argc) {
+int com_set_size(char* argv[], size_t argl[], size_t argc) {
   if (argc != 1) {
     printf("Expecting a single argument: 1K|4K\n");
     return -1;
@@ -1150,7 +1136,7 @@ int com_set_size(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_auth_load(char* argv[], size_t argc) {
+int com_auth_load(char* argv[], size_t argl[], size_t argc) {
   if (argc != 1) {
     printf("Expecting one single argument: filename\n");
     return -1;
@@ -1165,7 +1151,7 @@ int com_auth_load(char* argv[], size_t argc) {
   return res;
 }
 
-int com_auth_save(char* argv[], size_t argc) {
+int com_auth_save(char* argv[], size_t argl[], size_t argc) {
   if (argc != 1) {
     printf("Expecting one single argument: filename\n");
     return -1;
@@ -1179,7 +1165,7 @@ int com_auth_save(char* argv[], size_t argc) {
   return res;
 }
 
-int com_auth_clear(char* argv[], size_t argc) {
+int com_auth_clear(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -1189,7 +1175,7 @@ int com_auth_clear(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_auth_put(char* argv[], size_t argc) {
+int com_auth_put(char* argv[], size_t argl[], size_t argc) {
   if (argc != 3) {
     printf("Expecting three arguments: #sector A|B|AB key\n");
     return -1;
@@ -1215,7 +1201,7 @@ int com_auth_put(char* argv[], size_t argc) {
   }
 
   uint8_t key[6];
-  if (parse_key(key_str, key)) {
+  if (parse_key(key_str, argl[2], key)) {
     printf("Invalid key (expecting 6 bytes or known key name): %s\n  key name    value\n", key_str);
     for (const named_key_t *k = known_keys; k->name; k++) {
       printf("  %-10s  ", k->name);
@@ -1237,7 +1223,7 @@ int com_auth_put(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_auth_import(char* argv[], size_t argc) {
+int com_auth_import(char* argv[], size_t argl[], size_t argc) {
   if (argc > 2) {
     printf("Expecting two arguments: #sector A|B|AB\n");
     return -1;
@@ -1264,7 +1250,7 @@ int com_auth_import(char* argv[], size_t argc) {
   return import_auth(key_type, s1, s2);
 }
 
-int com_auth_export(char* argv[], size_t argc) {
+int com_auth_export(char* argv[], size_t argl[], size_t argc) {
   if (argc > 2) {
     printf("Expecting two arguments: #sector A|B|AB\n");
     return -1;
@@ -1292,7 +1278,7 @@ int com_auth_export(char* argv[], size_t argc) {
   return export_auth(key_type, s1, s2);
 }
 
-int com_auth_test(char* argv[], size_t argc) {
+int com_auth_test(char* argv[], size_t argl[], size_t argc) {
   if (argc > 2) {
     printf("Expecting two arguments: #sector A|B|AB\n");
     return -1;
@@ -1320,7 +1306,7 @@ int com_auth_test(char* argv[], size_t argc) {
   return mf_test_auth(&current_auth, s1, s2, key_type);
 }
 
-int com_auth_print(char* argv[], size_t argc) {
+int com_auth_print(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Expecting a single sector range\n");
     return -1;
@@ -1340,7 +1326,7 @@ int com_auth_print(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_dict_load(char* argv[], size_t argc) {
+int com_dict_load(char* argv[], size_t argl[], size_t argc) {
   if (argc != 1) {
     printf("Expecting one single argument: filename\n");
     return -1;
@@ -1357,7 +1343,7 @@ int com_dict_load(char* argv[], size_t argc) {
   return res;
 }
 
-int com_dict_clear(char* argv[], size_t argc) {
+int com_dict_clear(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -1367,7 +1353,7 @@ int com_dict_clear(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_dict_attack(char* argv[], size_t argc) {
+int com_dict_attack(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -1381,14 +1367,14 @@ int com_dict_attack(char* argv[], size_t argc) {
   return mf_dictionary_attack(&current_auth);
 }
 
-int com_dict_add(char* argv[], size_t argc) {
+int com_dict_add(char* argv[], size_t argl[], size_t argc) {
   if (argc != 1) {
     printf("Expecting one single argument: key\n");
     return -1;
   }
 
   uint8_t key[6];
-  if (parse_key(argv[0], key)) {
+  if (parse_key(argv[0], argl[0], key)) {
     printf("Invalid key (expecting 6 bytes or known key name): %s\n  key name    value\n", argv[0]);
     for (const named_key_t *k = known_keys; k->name; k++) {
       printf("  %-10s  ", k->name);
@@ -1404,7 +1390,7 @@ int com_dict_add(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_dict_print(char* argv[], size_t argc) {
+int com_dict_print(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -1424,7 +1410,7 @@ int com_dict_print(char* argv[], size_t argc) {
 }
 
 
-int com_spec_print(char* argv[], size_t argc) {
+int com_spec_print(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -1434,7 +1420,7 @@ int com_spec_print(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_spec_load(char* argv[], size_t argc) {
+int com_spec_load(char* argv[], size_t argl[], size_t argc) {
   if (argc != 1) {
     printf("Expecting one single argument: filename\n");
     return -1;
@@ -1454,7 +1440,7 @@ int com_spec_load(char* argv[], size_t argc) {
   return res;
 }
 
-int com_spec_clear(char* argv[], size_t argc) {
+int com_spec_clear(char* argv[], size_t argl[], size_t argc) {
   if (argc > 0) {
     printf("Too many arguments\n");
     return -1;
@@ -1465,9 +1451,9 @@ int com_spec_clear(char* argv[], size_t argc) {
   return 0;
 }
 
-int com_mac_key_get_set(char* argv[], size_t argc) {
+int com_mac_key_get_set(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
-    printf("Expecting one single argument: key\n");
+    printf("Expecting one single argument: 8-byte key\n");
     return -1;
   } else if (argc == 0) {
     printf("Current MAC key: \n");
@@ -1476,27 +1462,24 @@ int com_mac_key_get_set(char* argv[], size_t argc) {
     return 0;
   }
 
-  uint8_t key[8];
-  size_t len = 8;
-  if (parse_hex_str(argv[0], key, &len) != 0 || len != 8) {
+  if (argl[0] != 8) {
     printf("Invalid MAC key (expecting 8 bytes): %s\n", argv[0]);
     return -1;
   }
 
-  // Everything ok, so update the global
-  memcpy(current_mac_key, key, 8);
+  memcpy(current_mac_key, argv[0], 8);
   return 0;
 }
 
-int com_mac_block_compute(char* argv[], size_t argc) {
-  return com_mac_block_compute_impl(argv, argc, 0);
+int com_mac_block_compute(char* argv[], size_t argl[], size_t argc) {
+  return com_mac_block_compute_impl(argv, argl, argc, 0);
 }
 
-int com_mac_block_update(char* argv[], size_t argc) {
-  return com_mac_block_compute_impl(argv, argc, 1);
+int com_mac_block_update(char* argv[], size_t argl[], size_t argc) {
+  return com_mac_block_compute_impl(argv, argl, argc, 1);
 }
 
-int com_mac_block_compute_impl(char* argv[], size_t argc, int update) {
+int com_mac_block_compute_impl(char* argv[], size_t argl[], size_t argc, int update) {
   if (argc > 1) {
     printf("Expecting a single block range\n");
     return -1;
@@ -1530,7 +1513,7 @@ int com_mac_block_compute_impl(char* argv[], size_t argc, int update) {
   return res;
 }
 
-int com_mac_validate(char* argv[], size_t argc) {
+int com_mac_validate(char* argv[], size_t argl[], size_t argc) {
   if (argc > 1) {
     printf("Expecting a single block range\n");
     return -1;
@@ -1667,20 +1650,20 @@ int parse_blocks(const char* str, size_t* a, size_t* b, const char* def) {
   return parse_range(str, a, b, 0);
 }
 
-int parse_key(const char* str, uint8_t key[6]) {
-  // check known keys
+int parse_key(const char* str, const size_t len, uint8_t key[6]) {
+  // check known key names
   for (const named_key_t *k = known_keys; k->name; k++) {
-    if (strcmp(k->name, str) == 0) {
+    if (len == strlen(k->name) && strcmp(k->name, str) == 0) {
       memcpy(key, k->key, 6);
       return 0;
     }
   }
 
-  // parse hex key
-  size_t len = 6;
-  if (parse_hex_str(str, key, &len) != 0 || len != 6) {
-    return -1;
+  // is given data a valid hex key?
+  if (len == 6) {
+    memcpy(key, str, 6);
+    return 0;
   }
 
-  return 0;
+  return -1;
 }

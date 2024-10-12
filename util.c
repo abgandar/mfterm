@@ -117,6 +117,8 @@ static uint8_t hexdigit(const unsigned char c) {
     return c-'a'+10;
   else if(c >= 'A' && c <= 'F')
     return c-'A'+10;
+  else if(isspace(c))
+    return 254;
   else
     return 255;
 }
@@ -131,13 +133,52 @@ char* strqtok(char* str, size_t* len, char** end) {
     if(len) *len = 0;
     return NULL;
   }
+
   str += strspn(str, " ");
   if(*str == '\0') {
     if (end) *end = NULL;
     if(len) *len = 0;
     return NULL;
   }
+
   char delim;
+  if(*str == '\'') {
+    // read hex string and return
+    delim = '\'';
+    str++;
+    int digits = 0;
+    char* b = str, *res = str;
+    for(uint8_t x = hexdigit((unsigned char)*str); x != 255; x = hexdigit((unsigned char)*(++str)) ) {
+      if(x == 254) {    // whitespace
+        if(digits > 0) {
+          b++;
+          digits = 0;
+        }
+      } else {          // hex digit
+        if(digits > 0) {
+          *b = (char)(*b<<4 | x);
+          b++;
+          digits = 0;
+        } else {
+          *b = (char)x;
+          digits = 1;
+        }
+      }
+    }
+    if(digits) b++;
+    if(end) {
+      if (*str != delim) {
+        *end = NULL;   // unclosed quotes or invalid hex character: return NULL
+      } else {
+        *end = str + 1 + strspn(str+1, " ");
+      }
+    }
+    if(len) *len = (size_t)(b-res);
+    *b = '\0';    // null terminate for good measure (not counted in len, of course)
+    return res;
+  }
+
+  // read possibly quoted ASCII string with escapes
   if(*str == '"') {
     delim = '"';
     str++;
@@ -149,7 +190,7 @@ char* strqtok(char* str, size_t* len, char** end) {
   while(*str != '\0') {
     if(hex > 0) {
       const uint8_t x = hexdigit((unsigned char)*str);
-      if(x == 255) {
+      if(x > 15) {  // not a hex char?
         if(hex > 1) b++;
         hex = 0;
       } else {
