@@ -33,7 +33,7 @@ void print_hex_array(const unsigned char* data, size_t nbytes) {
 
 void print_hex_array_sep(const unsigned char* data, size_t nbytes, const char* sep) {
   for (int i = 0; i < nbytes; i++) {
-    printf("%02x%s", data[i], sep?sep:"");
+    printf("%02x%s", data[i], (sep && i < nbytes-1)?sep:"");
   }
 }
 
@@ -52,7 +52,7 @@ void print_hex_array_ascii(const unsigned char* data, size_t nbytes, size_t widt
     for(size_t i = MIN(width, (size_t)s); i < width; i++) {
       printf("   ");
     }
-    printf(" [");
+    printf("  [");
     print_ascii_rendering(d, MIN(width, (size_t)s), '.');
     for(size_t i = MIN(width, (size_t)s); i < width; i++) {
       putc(' ', stdout);

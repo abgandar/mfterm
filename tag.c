@@ -215,6 +215,7 @@ void print_tag_bytes(size_t first_byte, size_t last_byte) {
     if (block_last > 15)
       block_last = 15;
     print_hex_array_sep(block_data  + block_offset, block_last - block_offset + 1, " ");
+    printf(" ");
 
     // Fill up end with spaces
     for (size_t i = block_last; i < 15; ++i)
@@ -276,7 +277,7 @@ void print_tag_block_range(size_t first, size_t last) {
 
     print_hex_array_sep(current_tag.amb[block].mbd.abtData, sizeof(mf_block_t), " ");
 
-    printf(" [");
+    printf("  [");
     print_ascii_rendering(current_tag.amb[block].mbd.abtData, sizeof(mf_block_t), '.');
     printf("]\n");
 

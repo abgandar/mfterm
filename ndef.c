@@ -340,19 +340,26 @@ void ndef_print_unknown_record(const ndef_record_t* r) {
 }
 
 void ndef_print_external_record(const ndef_record_t* r) {
-  printf("External NDEF record\n");
-  if(r->type_len > 0) {
-    printf("type: ");
-    fwrite(r->type, r->type_len, 1, stdout);
+  if(r->type_len == strlen("android.com:pkg") && memcmp(r->type, "android.com:pkg", r->type_len) == 0) {
+    printf("Android Application NDEF record\n");
+    printf("Application: ");
+    fwrite(r->data, r->len, 1, stdout);
     printf("\n");
-  }
-  if(r->id_len > 0) {
-    printf("id:\n");
-    print_hex_array_ascii(r->id, r->id_len, 19);
-  }
-  if(r->len > 0) {
-    printf("data:\n");
-    print_hex_array_ascii(r->data, r->len, 19);
+  } else {
+    printf("External NDEF record\n");
+    if(r->type_len > 0) {
+      printf("type: ");
+      fwrite(r->type, r->type_len, 1, stdout);
+      printf("\n");
+    }
+    if(r->id_len > 0) {
+      printf("id:\n");
+      print_hex_array_ascii(r->id, r->id_len, 19);
+    }
+    if(r->len > 0) {
+      printf("data:\n");
+      print_hex_array_ascii(r->data, r->len, 19);
+    }
   }
 }
 
@@ -404,20 +411,84 @@ void ndef_print_uri_record(const ndef_record_t* r) {
   }
 }
 
+static inline uint16_t get_uint16(uint8_t** p) {
+  return (uint16_t)((*((*p)++)<<8) | *((*p)++));
+}
+
+void ndef_print_wifi_record(const ndef_record_t* r) {
+  printf("Wifi credentials record\n");
+  uint8_t *p = (uint8_t*)r->data;
+  size_t len;
+
+  // check first two TL starting entire record
+  if(r->len < 4 || get_uint16(&p) != 0x100e || (len = get_uint16(&p)) > r->len-4) {
+    printf("Defective.\n");
+    return;
+  }
+  const uint8_t *end = r->data + r->len;
+
+  // read TLVs, needs at least 4 bytes for TL
+  while(p+3 < end) {
+    uint16_t t = get_uint16(&p);
+    uint16_t l = get_uint16(&p);
+    uint16_t v;
+    if(p+l > end) {
+      printf("Defective\n");
+      return;
+    }
+    switch(t) {
+      case 0x1003:  // auth type
+        v = get_uint16(&p);
+        printf("Authentication type: 0x%04hx\n", v);
+        break;
+      case 0x100F:  // enc type
+        v = get_uint16(&p);
+        printf("Encryption type: 0x%04hx\n", v);
+        break;
+      case 0x1045:  // ssid
+        printf("SSID: ");
+        fwrite(p, l, 1, stdout);
+        printf("\n");
+        p += l;
+        break;
+      case 0x1027:  // password
+        printf("password: ");
+        fwrite(p, l, 1, stdout);
+        printf("\n");
+        p += l;
+        break;
+      case 0x1020:  // MAC
+        printf("MAC: ");
+        print_hex_array_sep(p, l, ":");
+        printf("\n");
+        p += l;
+        break;
+      default:
+        printf("unknown tag: %hd\n", t);
+        p += l;
+        break;
+    }
+  }
+}
+
 void ndef_print_mime_record(const ndef_record_t* r) {
-  printf("MIME NDEF record\n");
-  if(r->type_len > 0) {
-    printf("mime-type: ");
-    fwrite(r->type, r->type_len, 1, stdout);
-    printf("\n");
-  }
-  if(r->id_len > 0) {
-    printf("id:\n");
-    print_hex_array_ascii(r->id, r->id_len, 19);
-  }
-  if(r->len > 0) {
-    printf("data:\n");
-    print_hex_array_ascii(r->data, r->len, 19);
+  if(r->type_len == strlen("application/vnd.wfa.wsc") && memcmp(r->type, "application/vnd.wfa.wsc", r->type_len) == 0) {
+    ndef_print_wifi_record(r);
+  } else {
+    printf("MIME NDEF record\n");
+    if(r->type_len > 0) {
+      printf("mime-type: ");
+      fwrite(r->type, r->type_len, 1, stdout);
+      printf("\n");
+    }
+    if(r->id_len > 0) {
+      printf("id:\n");
+      print_hex_array_ascii(r->id, r->id_len, 19);
+    }
+    if(r->len > 0) {
+      printf("data:\n");
+      print_hex_array_ascii(r->data, r->len, 19);
+    }
   }
 }
 
@@ -458,6 +529,7 @@ int ndef_print_records(const uint8_t* ndef, size_t len) {
       r.data = p;
       p += r.len;
     }
+    printf("\n");
     switch(r.flags & 0x07) {
       case TNF_EXTERNAL:
         ndef_print_external_record(&r);
@@ -483,7 +555,6 @@ int ndef_print_records(const uint8_t* ndef, size_t len) {
         printf("Unknown NDEF record\n");
         ndef_print_unknown_record(&r);
     }
-    printf("\n");
   } while(!(r.flags & NDEF_ME) && p<end);
   return 0;
 }
