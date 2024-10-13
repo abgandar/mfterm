@@ -91,6 +91,7 @@ int com_print_blocks(char* argv[], size_t argl[], size_t argc);
 int com_print_sectors(char* argv[], size_t argl[], size_t argc);
 int com_print_keys(char* argv[], size_t argl[], size_t argc);
 int com_print_perm(char* argv[], size_t argl[], size_t argc);
+int com_print_value(char* argv[], size_t argl[], size_t argc);
 
 // Tag set (value) command
 int com_edit(char* argv[], size_t argl[], size_t argc);
@@ -98,6 +99,7 @@ int com_edit_uid(char* argv[], size_t argl[], size_t argc);
 int com_edit_key(char* argv[], size_t argl[], size_t argc);
 int com_edit_perm(char* argv[], size_t argl[], size_t argc);
 int com_edit_mod(char* argv[], size_t argl[], size_t argc);
+int com_edit_value(char* argv[], size_t argl[], size_t argc);
 
 // NDEF commands
 int com_ndef(char* argv[], size_t argl[], size_t argc);

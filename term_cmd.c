@@ -75,8 +75,12 @@ const command_t commands[] = {
   { "print block",  com_print_blocks,  0, 1, "#block: Print tag block data" },
   { "print keys",   com_print_keys,    0, 1, "#sector: Print tag sector keys" },
   { "print perm",   com_print_perm,    0, 1, "#sector: Print tag sector permissions" },
+  { "print value",  com_print_value,   0, 0, "#block: Print value block" },
+  { "print ndef",   com_ndef,          0, 0, "#sector: Print NDEF record(s)" },   // Alias
+  { "print mad",    com_mad,           0, 0, "Print tag MAD" },   // Alias
 
   { "edit",         com_edit,          0, 1, "#block #offset data: Set tag block data" },
+  { "edit value",   com_edit_value,    0, 1, "#block value [adr]: Edit a tag value block" },
   { "edit uid",     com_edit_uid,      0, 1, "'xxxxxxxx[xxxxxx]': Set tag UID" },
   { "edit key",     com_edit_key,      0, 1, "#sector A|B|AB 'xxxxxxxxxxxx': Set tag sector key" },
   { "edit perm",    com_edit_perm,     0, 1, "#block C1C2C3: Set tag block permissions" },
@@ -551,6 +555,44 @@ int com_edit(char* argv[], size_t argl[], size_t argc) {
   for( size_t block = b1; block <= b2; block++ )
     memcpy( current_tag.amb[block].mbd.abtData+offset, argv[2], argl[2] );
 
+  return 0;
+}
+
+int com_edit_value(char* argv[], size_t argl[], size_t argc) {
+  if (argc < 2 || argc > 3) {
+    printf("Expecting a block range, value and optional address\n");
+    return -1;
+  }
+
+  size_t b1, b2;
+  if( parse_blocks( argv[0], &b1, &b2, settings.size ) != 0 ) {
+    printf("Invalid block range: %s\n", argv[0] ? argv[0] : settings.size);
+    return -1;
+  }
+  if (b2 > 0xff || b1 > b2) {
+    printf("Invalid sector range: %lu-%lu\n", b1, b2);
+    return -1;
+  }
+
+  char* val_str = argv[1];
+  long int val = strtol(val_str, &val_str, 0);
+  if (val < INT32_MIN || val > INT32_MAX || *val_str != '\0') {
+    printf("Invalid value: %li\n", val);
+    return -1;
+  }
+
+  uint8_t adr = 0;
+  if(argc == 3) {
+    char* adr_str = argv[2];
+    long int adrl = strtol(adr_str, &adr_str, 0);
+    if (adrl < 0 || adrl > UINT8_MAX || *adr_str != '\0') {
+      printf("Invalid address: 0x%lx\n", adrl);
+      return -1;
+    }
+    adr = (uint8_t)adrl;
+  }
+
+  tag_edit_value(&current_tag, b1, b2, (int32_t)val, adr );
   return 0;
 }
 
@@ -1063,6 +1105,26 @@ int com_print_perm(char* argv[], size_t argl[], size_t argc) {
   s2 = sector_to_trailer(s2);
 
   print_ac(&current_tag, s1, s2 );
+  return 0;
+}
+
+int com_print_value(char* argv[], size_t argl[], size_t argc) {
+  if (argc > 1) {
+    printf("Expecting a single block range\n");
+    return -1;
+  }
+
+  size_t b1, b2;
+  if( parse_blocks( argv[0], &b1, &b2, settings.size ) != 0 ) {
+    printf("Invalid block range: %s\n", argv[0] ? argv[0] : settings.size);
+    return -1;
+  }
+  if (b2 > 0xff || b1 > b2) {
+    printf("Invalid sector range: %lu-%lu\n", b1, b2);
+    return -1;
+  }
+
+  print_value(&current_tag, b1, b2 );
   return 0;
 }
 

@@ -362,6 +362,59 @@ void print_ac(const mf_tag_t* tag, size_t b1, size_t b2) {
   }
 }
 
+void print_value(const mf_tag_t* tag, size_t b1, size_t b2) {
+  printf("#b      value     adr\n----------------------\n");
+  for (size_t block = b1; block <= b2; block++) {
+    if (block == 0 || is_trailer_block(block))
+      continue;
+    int32_t val = (int32_t)(tag->amb[block].mbd.abtData[0] | tag->amb[block].mbd.abtData[1]<<8 | tag->amb[block].mbd.abtData[2]<<16 | tag->amb[block].mbd.abtData[3]<<24);
+    uint8_t adr = tag->amb[block].mbd.abtData[12];
+    printf("%02zx ", block);
+    if (tag->amb[block].mbd.abtData[4] != (uint8_t)(~tag->amb[block].mbd.abtData[0]) ||
+        tag->amb[block].mbd.abtData[5] != (uint8_t)(~tag->amb[block].mbd.abtData[1]) ||
+        tag->amb[block].mbd.abtData[6] != (uint8_t)(~tag->amb[block].mbd.abtData[2]) ||
+        tag->amb[block].mbd.abtData[7] != (uint8_t)(~tag->amb[block].mbd.abtData[3]) ||
+        tag->amb[block].mbd.abtData[8] != tag->amb[block].mbd.abtData[0] ||
+        tag->amb[block].mbd.abtData[9] != tag->amb[block].mbd.abtData[1] ||
+        tag->amb[block].mbd.abtData[10] != tag->amb[block].mbd.abtData[2] ||
+        tag->amb[block].mbd.abtData[11] != tag->amb[block].mbd.abtData[3]) {
+      printf("    invalid   ");
+    } else {
+      printf("  %11i  ", (int32_t)val);
+    }
+    if (tag->amb[block].mbd.abtData[13] != (uint8_t)(~tag->amb[block].mbd.abtData[12]) ||
+        tag->amb[block].mbd.abtData[14] != tag->amb[block].mbd.abtData[12] ||
+        tag->amb[block].mbd.abtData[15] != (uint8_t)(~tag->amb[block].mbd.abtData[12])) {
+      printf("invalid\n");
+    } else {
+      printf("0x%02hhx\n", adr);
+    }
+  }
+}
+
+void tag_edit_value(mf_tag_t* tag, size_t b1, size_t b2, int32_t val, uint8_t adr) {
+  for (size_t block = b1; block <= b2; block++) {
+    if (block == 0 || is_trailer_block(block))
+      continue;
+    tag->amb[block].mbd.abtData[0] = (uint8_t)(val);
+    tag->amb[block].mbd.abtData[1] = (uint8_t)(val>>8);
+    tag->amb[block].mbd.abtData[2] = (uint8_t)(val>>16);
+    tag->amb[block].mbd.abtData[3] = (uint8_t)(val>>24);
+    tag->amb[block].mbd.abtData[4] = (uint8_t)(~val);
+    tag->amb[block].mbd.abtData[5] = (uint8_t)(~val>>8);
+    tag->amb[block].mbd.abtData[6] = (uint8_t)(~val>>16);
+    tag->amb[block].mbd.abtData[7] = (uint8_t)(~val>>24);
+    tag->amb[block].mbd.abtData[8] = (uint8_t)(val);
+    tag->amb[block].mbd.abtData[9] = (uint8_t)(val>>8);
+    tag->amb[block].mbd.abtData[10] = (uint8_t)(val>>16);
+    tag->amb[block].mbd.abtData[11] = (uint8_t)(val>>24);
+    tag->amb[block].mbd.abtData[12] = adr;
+    tag->amb[block].mbd.abtData[13] = ~adr;
+    tag->amb[block].mbd.abtData[14] = adr;
+    tag->amb[block].mbd.abtData[15] = ~adr;
+  }
+}
+
 void clear_blocks(mf_tag_t* tag, size_t b1, size_t b2) {
   for (size_t block = b1; block <= b2; block++) {
     if (block == 0 || is_trailer_block(block))

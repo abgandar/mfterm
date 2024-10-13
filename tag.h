@@ -66,6 +66,10 @@ void print_tag_data_range(size_t byte_offset, size_t bit_offset, size_t byte_len
 void print_tag_bytes(size_t first_byte, size_t last_byte);
 void print_keys(const mf_tag_t* tag, size_t s1, size_t s2);
 void print_ac(const mf_tag_t* tag, size_t b1, size_t b2);
+void print_value(const mf_tag_t* tag, size_t b1, size_t b2);
+
+// edit values
+void tag_edit_value(mf_tag_t* tag, size_t b1, size_t b2, int32_t val, uint8_t adr);
 
 // Set the contents of a tag to zeroes
 void clear_tag(mf_tag_t* tag);
