@@ -31,6 +31,8 @@ mfterm_SOURCES =                \
   mad.h mad.c                   \
   mifare.h mifare.c             \
   mifare_ctrl.h mifare_ctrl.c   \
+  emulator.h emulator.c         \
+  crypto1.h crypto1.c           \
   dictionary.h dictionary.c     \
   spec_syntax.h spec_syntax.c   \
   mac.h mac.c

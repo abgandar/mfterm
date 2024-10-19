@@ -60,6 +60,7 @@ void print_version();
 int main(int argc, char** argv) {
   struct sigaction act = { .sa_handler = &mf_signal_handler };
   sigaction(SIGINT, &act, NULL);
+  srandomdev();
   parse_cmdline(argc, argv);
   initialize_readline();
   reset_tag(&current_tag);

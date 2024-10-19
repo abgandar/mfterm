@@ -70,6 +70,9 @@ const command_t commands[] = {
   { "check",        com_check_tag,     0, 1, "Check the current tag data" },
   { "fix",          com_fix_tag,       0, 1, "Try to fix errors in current tag data" },
 
+  { "emulate",      com_emulate_tag,   0, 1, "Emulate a tag with current tag data" },
+  { "remulade",     com_remulade,      0, 1, "Emulate a reader just for fun" },
+
   { "print",        com_print_sectors, 0, 1, "#sector: Print tag sector data" },
   { "p",            com_print_sectors, 0, 0, "Alias of print" },
   { "print block",  com_print_blocks,  0, 1, "#block: Print tag block data" },
@@ -454,6 +457,29 @@ int com_fix_tag(char* argv[], size_t argl[], size_t argc) {
 
   check_tag(&current_tag, true);
   return 0;
+}
+
+int com_emulate_tag(char* argv[], size_t argl[], size_t argc) {
+  if (argc > 1) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  mf_size_t s = parse_size(argv[0], settings.size);
+  if (s == MF_INVALID_SIZE) {
+    printf("Invalid size: %s\n", argv[0] ? argv[0] : settings.size);
+    return -1;
+  }
+  return mf_emulate(&current_tag, s);
+}
+
+int com_remulade(char* argv[], size_t argl[], size_t argc) {
+  if (argc > 0) {
+    printf("Too many arguments\n");
+    return -1;
+  }
+
+  return mf_remulade(&current_tag);
 }
 
 int com_devices(char* argv[], size_t argl[], size_t argc) {

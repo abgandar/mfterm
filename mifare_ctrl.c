@@ -56,6 +56,7 @@
 #include "tag.h"
 #include "util.h"
 #include "mifare_ctrl.h"
+#include "emulator.h"
 
 settings_t settings = { "", "AB", "1K" };
 
@@ -130,7 +131,8 @@ void mf_signal_handler(int sig)
 }
 
 int mf_disconnect(int ret_state) {
-  nfc_abort_command(device);
+  if(nfc_device_get_last_error(device) != 0)
+    nfc_perror(device, "NFC error");
   nfc_close(device);
   nfc_exit(context);
   device = NULL;
@@ -853,6 +855,82 @@ int mf_version()
 {
   printf("%s\t\tlibnfc %s\n", PACKAGE_STRING, nfc_version() );
   return 0;
+}
+
+int mf_remulade(const mf_tag_t* tag) {
+  if (mf_connect())
+    return -1; // No need to disconnect here
+
+  emulator_data_t emulator = {
+    .device = device,
+    .target = &target,
+    .tag = (mf_tag_t*)tag
+  };
+
+  if (emulate_reader(&emulator) < 0) {
+    return mf_disconnect(-1);
+  }
+
+  return mf_disconnect(0);
+}
+
+// emulate tag
+int mf_emulate(const mf_tag_t* tag, mf_size_t size)
+{
+  // Initialize libnfc and set the nfc_context
+  nfc_init(&context);
+
+  // Connect to NFC reader
+  device = nfc_open(context, settings.device[0] == '\0' ? NULL : settings.device);
+  if (device == NULL) {
+    printf ("Could not connect to NFC device\n");
+    nfc_exit(context);
+    return -1; // Don't need to disconnect
+  }
+
+  // Notes for ISO14443-A emulated tags:
+  // * Only short UIDs are supported
+  //   If your UID is longer it will be truncated
+  //   Therefore e.g. an UltraLight can only have short UID, which is
+  //   typically badly handled by readers who still try to send their "0x95"
+  // * First byte of UID will be masked by 0x08 by the PN53x firmware
+  //   as security countermeasure against real UID emulation
+
+  const uint8_t atqa_1k[] = { 0x00, 0x04 }, atqa_4k[] = { 0x00, 0x02 };
+  nfc_target nt = {
+    .nm = {
+      .nmt = NMT_ISO14443A,
+      .nbr = NBR_UNDEFINED,
+    },
+    .nti = {
+      .nai = {
+        .btSak = size == MF_1K ? 0x08 : 0x18,
+        .szUidLen = 4,
+        .szAtsLen = 0,
+      },
+    },
+  };
+  memcpy(nt.nti.nai.abtAtqa, size == MF_1K ? atqa_1k : atqa_4k, 2);
+  memcpy(nt.nti.nai.abtUid, tag->amb[0].mbm.abtUID, 4);
+  nt.nti.nai.abtUid[0] = 0x08;  // enforced by libnfc
+
+  printf("Emulating this ISO14443-A tag:\n");
+  char *s;
+  str_nfc_target(&s, &nt, true);
+  printf("%s", s);
+  nfc_free(s);
+
+  emulator_data_t emulator = {
+    .device = device,
+    .target = &nt,
+    .tag = (mf_tag_t*)tag
+  };
+
+  if (emulate_target(&emulator) < 0) {
+    return mf_disconnect(-1);
+  }
+
+  return mf_disconnect(0);
 }
 
 bool transmit_bits(const uint8_t *pbtTx, const size_t szTxBits)

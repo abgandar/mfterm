@@ -98,4 +98,8 @@ int mf_ident_tag();
 int mf_version();
 
 int mf_write_mod(const mf_tag_t* tag, const mf_tag_t* keys);
+
+int mf_emulate(const mf_tag_t* tag, mf_size_t size);
+int mf_remulade(const mf_tag_t* tag);
+
 #endif

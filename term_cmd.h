@@ -85,6 +85,8 @@ int com_write_mod(char* argv[], size_t argl[], size_t argc);
 int com_ident(char* argv[], size_t argl[], size_t argc);
 int com_check_tag(char* argv[], size_t argl[], size_t argc);
 int com_fix_tag(char* argv[], size_t argl[], size_t argc);
+int com_emulate_tag(char* argv[], size_t argl[], size_t argc);
+int com_remulade(char* argv[], size_t argl[], size_t argc);
 
 // Tag print commands
 int com_print_blocks(char* argv[], size_t argl[], size_t argc);
