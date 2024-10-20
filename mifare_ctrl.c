@@ -933,10 +933,23 @@ int mf_emulate(const mf_tag_t* tag, mf_size_t size)
   return mf_disconnect(0);
 }
 
+// stupid libnfc ignores output length and can overwrite following memory (sometimes even if received length fits?!)
+// tx_len is given in bytes here (unclear in libnfc docs)!
+int nfc_initiator_transceive_bits_safe(nfc_device *device, const uint8_t *tx, const size_t tx_len, const uint8_t *ptx, uint8_t *rx, const size_t rx_len, uint8_t *prx) {
+  uint8_t prx1[1024], rx1[1024];  // ugly hack: larger than largest data frame hardcoded in libnfc
+  int res = nfc_initiator_transceive_bits(device, tx, tx_len, ptx, rx1, rx_len, prx1);
+  if(res <= 0) return res;
+  if( rx_len*8 < res )
+    return NFC_EOVFLOW;   // behaves as libnfc docs claim libnfc behaves (but doesn't)
+  memcpy(rx, rx1, (res+1)/8);
+  memcpy(prx, prx1, (res+1)/8);
+  return res;
+}
+
 bool transmit_bits(const uint8_t *pbtTx, const size_t szTxBits)
 {
   // Transmit the bit frame command, we don't use the arbitrary parity feature
-  if ((szRxBits = nfc_initiator_transceive_bits(device, pbtTx, szTxBits, NULL, abtRx, sizeof(abtRx), NULL)) < 0)
+  if ((szRxBits = nfc_initiator_transceive_bits_safe(device, pbtTx, szTxBits, NULL, abtRx, sizeof(abtRx), NULL)) < 0)
     return false;
 
   return true;

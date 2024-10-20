@@ -102,4 +102,6 @@ int mf_write_mod(const mf_tag_t* tag, const mf_tag_t* keys);
 int mf_emulate(const mf_tag_t* tag, mf_size_t size);
 int mf_remulade(const mf_tag_t* tag);
 
+int nfc_initiator_transceive_bits_safe(nfc_device *device, const uint8_t *tx, const size_t tx_len, const uint8_t *ptx, uint8_t *rx, const size_t rx_len, uint8_t *prx);
+
 #endif
