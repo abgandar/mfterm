@@ -101,6 +101,14 @@ static const card_ident_t cards[] = {
   { "Unknown",    "Unknown",             "", 0 }
 };
 
+// some constants taken from libnfc
+const int ISO7816_C_APDU_COMMAND_HEADER_LEN = 4;
+const int ISO7816_SHORT_APDU_MAX_DATA_LEN = 256;
+const int ISO7816_SHORT_C_APDU_MAX_OVERHEAD = 2;
+const int ISO7816_SHORT_R_APDU_RESPONSE_TRAILER_LEN = 2;
+const int ISO7816_SHORT_C_APDU_MAX_LEN = ISO7816_C_APDU_COMMAND_HEADER_LEN + ISO7816_SHORT_APDU_MAX_DATA_LEN + ISO7816_SHORT_C_APDU_MAX_OVERHEAD;
+const int ISO7816_SHORT_R_APDU_MAX_LEN = ISO7816_SHORT_APDU_MAX_DATA_LEN + ISO7816_SHORT_R_APDU_RESPONSE_TRAILER_LEN;
+
 int mf_connect_internal();
 int mf_connect();
 int mf_disconnect(int ret_state);
@@ -857,14 +865,14 @@ int mf_version()
   return 0;
 }
 
-int mf_remulade(const mf_tag_t* tag) {
+int mf_remulade(mf_tag_t* keys) {
   if (mf_connect())
     return -1; // No need to disconnect here
 
   emulator_data_t emulator = {
     .device = device,
     .target = &target,
-    .tag = (mf_tag_t*)tag
+    .tag = keys
   };
 
   if (emulate_reader(&emulator) < 0) {
@@ -875,7 +883,7 @@ int mf_remulade(const mf_tag_t* tag) {
 }
 
 // emulate tag
-int mf_emulate(const mf_tag_t* tag, mf_size_t size)
+int mf_emulate(mf_tag_t* tag, mf_size_t size)
 {
   // Initialize libnfc and set the nfc_context
   nfc_init(&context);
@@ -923,7 +931,7 @@ int mf_emulate(const mf_tag_t* tag, mf_size_t size)
   emulator_data_t emulator = {
     .device = device,
     .target = &nt,
-    .tag = (mf_tag_t*)tag
+    .tag = tag
   };
 
   if (emulate_target(&emulator) < 0) {
@@ -936,7 +944,7 @@ int mf_emulate(const mf_tag_t* tag, mf_size_t size)
 // stupid libnfc ignores output length and can overwrite following memory (sometimes even if received length fits?!)
 // tx_len is given in bytes here (unclear in libnfc docs)!
 int nfc_initiator_transceive_bits_safe(nfc_device *device, const uint8_t *tx, const size_t tx_len, const uint8_t *ptx, uint8_t *rx, const size_t rx_len, uint8_t *prx) {
-  uint8_t prx1[1024], rx1[1024];  // ugly hack: larger than largest data frame hardcoded in libnfc
+  uint8_t prx1[ISO7816_SHORT_C_APDU_MAX_LEN], rx1[ISO7816_SHORT_C_APDU_MAX_LEN];
   int res = nfc_initiator_transceive_bits(device, tx, tx_len, ptx, rx1, rx_len, prx1);
   if(res <= 0) return res;
   if( rx_len*8 < res )

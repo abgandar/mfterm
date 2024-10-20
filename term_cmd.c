@@ -479,7 +479,7 @@ int com_remulade(char* argv[], size_t argl[], size_t argc) {
     return -1;
   }
 
-  return mf_remulade(&current_tag);
+  return mf_remulade(&current_auth);
 }
 
 int com_devices(char* argv[], size_t argl[], size_t argc) {

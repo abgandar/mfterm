@@ -26,6 +26,14 @@
 #include "tag.h"
 #include "dictionary.h"
 
+// some constants taken from libnfc
+extern const int ISO7816_C_APDU_COMMAND_HEADER_LEN ;
+extern const int ISO7816_SHORT_APDU_MAX_DATA_LEN ;
+extern const int ISO7816_SHORT_C_APDU_MAX_OVERHEAD;
+extern const int ISO7816_SHORT_R_APDU_RESPONSE_TRAILER_LEN;
+extern const int ISO7816_SHORT_C_APDU_MAX_LEN;
+extern const int ISO7816_SHORT_R_APDU_MAX_LEN;
+
 /**
  * Settings
  */
@@ -99,8 +107,8 @@ int mf_version();
 
 int mf_write_mod(const mf_tag_t* tag, const mf_tag_t* keys);
 
-int mf_emulate(const mf_tag_t* tag, mf_size_t size);
-int mf_remulade(const mf_tag_t* tag);
+int mf_emulate(mf_tag_t* tag, mf_size_t size);
+int mf_remulade(mf_tag_t* keys);
 
 int nfc_initiator_transceive_bits_safe(nfc_device *device, const uint8_t *tx, const size_t tx_len, const uint8_t *ptx, uint8_t *rx, const size_t rx_len, uint8_t *prx);
 

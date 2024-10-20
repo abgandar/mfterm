@@ -156,7 +156,7 @@ void crypto1_auth_tag1(crypto1_ctx_t *ctx, const uint8_t key[6], const uint8_t u
 // inut: encrypted nr, encrypted ar received from reader
 // output: un-encrypted nr, unencrypted ar
 void crypto1_auth_tag2(crypto1_ctx_t *ctx, crypto1_auth_t *a) {
-  ctx->f = get32(a->nr);             // 32 bit feed
+  ctx->f = get32(a->nr);          // 32 bit feed
   ctx->fb = 1;                    // feedback (decrypts nr in feed)
   crypto1_decrypt(ctx, a->nr, sizeof(a->nr));
   ctx->fb = 0;                    // feedback off

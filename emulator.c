@@ -34,6 +34,8 @@
 
 #define DEBUG 1
 
+const int NFC_CRYPTO1_BITS = 0x10000;
+
 int nfc_target_send_crypto1_bytes(nfc_device *device, crypto1_ctx_t *ctx, uint8_t *data_out, size_t len, const bool crc) {
   uint8_t tx[len+2], ptx[len+2];
   memcpy(tx, data_out, len);
@@ -55,37 +57,39 @@ int nfc_target_receive_crypto1_bytes(nfc_device *device, crypto1_ctx_t *ctx, uin
   uint8_t prx[len];
   int rx_len = nfc_target_receive_bits(device, data_in, 8*len, prx);
   if(rx_len < 0) return rx_len;
-  if(rx_len%8 != 0) printf("Did not receive full bytes: %u bits left\n", rx_len%8);
+
   if(ctx->state != CRYPTO1_OFF)
     crypto1_decrypt(ctx, data_in, (size_t)rx_len/8);
+
+  if(rx_len%8 != 0) {
+    printf("Error: Did not receive full bytes: %u bits, %u bits left\n", rx_len, rx_len%8);
+    ctx->state = CRYPTO1_OFF;
+    return NFC_CRYPTO1_BITS & rx_len;  // indicate this is bits, not bytes
+  }
   return rx_len/8 - (crc ? 2 : 0);
 }
 
-int emulate_auth(emulator_data_t *ed, const uint8_t *data_in, uint8_t *data_out) {
-  mf_key_type_t key_type = (data_in[0] == 0x60) ? MF_KEY_A : MF_KEY_B;
-  uint8_t block = data_in[1];
+int emulate_auth(emulator_data_t *ed, const mf_key_type_t key_type, const uint8_t block) {
   const uint8_t *key = (key_type == MF_KEY_A) ? ed->tag->amb[block_to_trailer(block)].mbt.abtKeyA : ed->tag->amb[block_to_trailer(block)].mbt.abtKeyB;
   const uint8_t *uid = ed->target->nti.nai.abtUid;
   crypto1_auth_t a;
 
   // initialize and get nt+parity to send
   //*((uint32_t*)(a.nt)) = (uint32_t)random();  // fill with random bits
-  *((uint32_t*)(a.nt)) = 0;  // fill with random bits
+  *((uint32_t*)(a.nt)) = 0x00010001;  // fill with not-so-random bits
   printf("    nt: "); print_hex_array_sep(a.nt, 4, " "); printf("\n");
   crypto1_auth_tag1(&ed->ctx, key, uid, &a);
   printf("    nt (enc'd): "); print_hex_array_sep(a.nt, 4, " "); printf("\n");
   ed->ctx.state = CRYPTO1_OFF;
-  int rx_len = 0;
 
   // send nt and recieve encrypted nr, ar
+  int rx_len;
   if (nfc_target_send_bits(ed->device, a.nt, sizeof(a.nt)*8, a.nt_p) < 0 ||
       (rx_len = nfc_target_receive_bits(ed->device, a.nr, 8*8, a.nr_p)) < 0) {
     nfc_perror(ed->device, "auth1");
     return 0;
   }
-  printf("    Received (%i bits): ", rx_len);
-  print_hex_array_sep(a.nr, (size_t)rx_len/8, " ");
-  printf("\n");
+  printf("    Received (%i bits): ", rx_len); print_hex_array_sep(a.nr, (size_t)rx_len/8, " "); printf("\n");
   if(rx_len != 64) return -1;
 
   // interpret received encrypted nr, ar
@@ -103,7 +107,7 @@ int emulate_auth(emulator_data_t *ed, const uint8_t *data_in, uint8_t *data_out)
 
   // return at to complete the authentication
   ed->ctx.state = (key_type == MF_KEY_A) ? CRYPTO1_ON_A : CRYPTO1_ON_B;
-  if (nfc_target_send_crypto1_bytes(ed->device, &ed->ctx, a.at, sizeof(a.at), false) < 0) {
+  if(nfc_target_send_crypto1_bytes(ed->device, &ed->ctx, a.at, sizeof(a.at), false) < 0) {
     ed->ctx.state = CRYPTO1_OFF;
     nfc_perror(ed->device, "auth2");
     return -1;
@@ -117,31 +121,41 @@ int emulate_target_io(emulator_data_t *ed, const uint8_t *data_in, const size_t 
 {
   nfc_target *nt = ed->target;
   mf_tag_t *tag = ed->tag;
+  uint8_t cmd, block;
 
   int res = 0;  // number of bytes to write or negative to end loop
 
   if (data_in_len) {
     if (DEBUG) {
-      printf("    In: ");
-      print_hex_array_sep(data_in, data_in_len, " ");
-      printf("\n");
+      printf("    In: "); print_hex_array_sep(data_in, data_in_len, " "); printf("\n");
     }
-    switch (data_in[0]) {
-      case 0x30: // Mifare read, block address in data_in[1]
-        // XXX check crypto is on, access permissions, blank out key data
+    cmd = data_in[0];
+    block = data_in[1];
+    switch (cmd) {
+      case 0x30: // Mifare read
+        // XXX check access permissions
+        if((data_in_len != 2) || (ed->ctx.state != CRYPTO1_ON_A && ed->ctx.state != CRYPTO1_ON_B))
+          return -1;
         res = 16;
-        memcpy(data_out, tag->amb[data_in[1]].mbd.abtData, 16);
+        memcpy(data_out, tag->amb[block].mbd.abtData, 16);
+        if(is_trailer_block(block)) {
+          memset(data_out, 0, 6);
+          memset(data_out+10, 0, 6);
+        }
         break;
+
       case 0x50: // HLTA (ISO14443-3)
         if (DEBUG) {
           printf("Initiator HLTA me. Bye!\n");
         }
         res = -1;
         break;
+
       case 0x60: // Mifare authA
       case 0x61: // Mifare authB
-        res = emulate_auth(ed, data_in, data_out);
+        res = emulate_auth(ed, (cmd == 0x60) ? MF_KEY_A : MF_KEY_B, block);
         break;
+
       case 0xe0: // RATS (ISO14443-4)
         res = (int)(nt->nti.nai.szAtsLen + 1);
         data_out[0] = (uint8_t)(nt->nti.nai.szAtsLen + 1); // ISO14443-4 says that ATS contains ATS_Length as first byte
@@ -149,12 +163,14 @@ int emulate_target_io(emulator_data_t *ed, const uint8_t *data_in, const size_t 
           memcpy(data_out + 1, nt->nti.nai.abtAts, nt->nti.nai.szAtsLen);
         }
         break;
+
       case 0xc2: // S-block DESELECT
         if (DEBUG) {
           printf("Initiator DESELECT. Bye!\n");
         }
         res = -1;
         break;
+
       default: // Unknown
         if (DEBUG) {
           printf("Unknown frame, emulated target abort.\n");
@@ -164,20 +180,10 @@ int emulate_target_io(emulator_data_t *ed, const uint8_t *data_in, const size_t 
   }
   // Show transmitted command
   if ((DEBUG) && res > 0) {
-    printf("    Out: ");
-    print_hex_array_sep(data_out, (size_t)res, " ");
-    printf("\n");
+    printf("    Out: "); print_hex_array_sep(data_out, (size_t)res, " "); printf("\n");
   }
   return res;
 }
-
-#define ISO7816_C_APDU_COMMAND_HEADER_LEN 4
-#define ISO7816_SHORT_APDU_MAX_DATA_LEN 256
-#define ISO7816_SHORT_C_APDU_MAX_OVERHEAD 2
-#define ISO7816_SHORT_R_APDU_RESPONSE_TRAILER_LEN 2
-
-#define ISO7816_SHORT_C_APDU_MAX_LEN (ISO7816_C_APDU_COMMAND_HEADER_LEN + ISO7816_SHORT_APDU_MAX_DATA_LEN + ISO7816_SHORT_C_APDU_MAX_OVERHEAD)
-#define ISO7816_SHORT_R_APDU_MAX_LEN (ISO7816_SHORT_APDU_MAX_DATA_LEN + ISO7816_SHORT_R_APDU_RESPONSE_TRAILER_LEN)
 
 int emulate_target(emulator_data_t *ed)
 {
@@ -221,8 +227,6 @@ int emulate_target(emulator_data_t *ed)
 
 
 /* Reader emulation functions */
-
-const int NFC_CRYPTO1_BITS = 0x10000;
 
 // Returns NFC_CRYPTO1_BITS + number of bits if received bits are not multiple of 8.
 // CRYPTO1 session is lost after receiving partial bits, card needs to be reset and reselected after that.
@@ -313,9 +317,9 @@ int emulate_reader(emulator_data_t *ed)
     return -1;
   }
 
-  bzero(&ed->ctx, sizeof(ed->ctx));
+  bzero(&ed->ctx, sizeof(ed->ctx));   // full reset just to be sure
 
-  uint8_t tx[48], rx[48];
+  uint8_t tx[ISO7816_SHORT_C_APDU_MAX_LEN], rx[ISO7816_SHORT_C_APDU_MAX_LEN];
   int rx_len;
 
   // auth and read something
