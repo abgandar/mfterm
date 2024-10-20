@@ -27,6 +27,7 @@
 
 typedef enum {
   CRYPTO1_OFF = 0,
+  CRYPTO1_REAUTH = 1,
   CRYPTO1_ON_A = 2,     // bit 1 = on(1), bit 0 = A(0)
   CRYPTO1_ON_B = 3      // bit 1 = on(1), bit 0 = B(1)
 } crypto1_state_t;
@@ -37,36 +38,39 @@ typedef struct {
   crypto1_state_t state;
 } crypto1_ctx_t;
 
-uint32_t crypto1_ar(uint32_t nt);
-uint32_t crypto1_at(uint32_t nr);
+void crypto1_ar(uint8_t nt[4]);
+void crypto1_at(uint8_t ar[4]);
+
+void crypto1_decrypt_bits(crypto1_ctx_t *ctx, uint8_t *data, size_t len);
+void crypto1_encrypt_bits(crypto1_ctx_t *ctx, uint8_t *data, size_t len);
+void crypto1_decrypt(crypto1_ctx_t *ctx, uint8_t *data, const size_t len);
+void crypto1_encrypt(crypto1_ctx_t *ctx, uint8_t *data, const size_t len, uint8_t *parity);
 
 // input: key, UID, received (encrypted) nt
 // output: decrypted nt
-void crypto1_auth1_nested_reader(crypto1_ctx_t *ctx, const uint8_t key[6], uint32_t uid, uint32_t *nt);
+void crypto1_auth1_nested_reader(crypto1_ctx_t *ctx, const uint8_t key[6], const uint8_t uid[4], uint8_t nt[4]);
 
 // input: key, UID, (un-encrypted) nt
 // output: encrypted nt, encrypted parity bits
-void crypto1_auth1_nested_tag(crypto1_ctx_t *ctx, const uint8_t key[6], uint32_t uid, uint32_t *nt, uint32_t *nt_p);
+void crypto1_auth1_nested_tag(crypto1_ctx_t *ctx, const uint8_t key[6], const uint8_t uid[4], uint8_t nt[4], uint8_t nt_p[4]);
 
 // input: key, UID, (un-encrypted) nt
-void crypto1_auth1_plain(crypto1_ctx_t *ctx, const uint8_t key[6], uint32_t uid, uint32_t nt);
+void crypto1_auth1_plain(crypto1_ctx_t *ctx, const uint8_t key[6], const uint8_t uid[4], const uint8_t nt[4]);
 
 // input: key, UID, (un-encrypted) nt
 // output: nt to send to reader
-void crypto1_auth1_tag(crypto1_ctx_t *ctx, const uint8_t key[6], const uint32_t uid, uint32_t *nt, uint32_t *nt_p);
+void crypto1_auth1_tag(crypto1_ctx_t *ctx, const uint8_t key[6], const uint8_t uid[4], uint8_t nt[4], uint8_t nt_p[4]);
 
 // input: key, UID, nt received from reader
 // output: un-encrypted nt
-void crypto1_auth1_reader(crypto1_ctx_t *ctx, const uint8_t key[6], const uint32_t uid, uint32_t *nt);
+void crypto1_auth1_reader(crypto1_ctx_t *ctx, const uint8_t key[6], const uint8_t uid[4], uint8_t nt[4]);
 
 // inut: nr, ar(=suc64(nt))
 // output: encrypted nr, ar to send to tag
-void crypto1_auth2_reader(crypto1_ctx_t *ctx, uint32_t *nr, uint32_t *nr_p, uint32_t *ar, uint32_t *ar_p);
+void crypto1_auth2_reader(crypto1_ctx_t *ctx, uint8_t nr[4], uint8_t nr_p[4], uint8_t ar[4], uint8_t ar_p[4]);
 
 // inut: encrypted nr, ar received from reader
 // output: un-encrypted nr, ar
-void crypto1_auth2_tag(crypto1_ctx_t *ctx, uint32_t *nr, uint32_t *ar);
+void crypto1_auth2_tag(crypto1_ctx_t *ctx, uint8_t nr[4], uint8_t ar[4]);
 
-void crypto1_decrypt(crypto1_ctx_t *ctx, uint8_t *data, const size_t len);
-void crypto1_encrypt(crypto1_ctx_t *ctx, uint8_t *data, const size_t len, uint8_t *parity);
 #endif

@@ -22,72 +22,53 @@
 #include "crypto1.h"
 
 // calculate normal (odd) parity
-uint32_t crypto1_parity(uint32_t x) {
-  uint32_t p = 0;
-  for(int i = 0; i < 4; i++) {
-    p <<= 8;
-    p |= !__builtin_parity(x>>24);
-    x <<= 8;
-  }
-  return p;
+void crypto1_parity(uint8_t *x, uint8_t *x_p, size_t l) {
+  for(size_t i = 0; i < l; i++)
+    x_p[i] = !__builtin_parity(x[i]);
 }
 
-// reverse bits in each byte so they can be fed from left to right
-static inline uint32_t feedbits(uint32_t x) {
-  x = ((x<<1)&0xAAAAAAAA) | ((x>>1)&0x55555555);
-  x = ((x<<2)&0xCCCCCCCC) | ((x>>2)&0x33333333);
-  x = ((x<<4)&0xF0F0F0F0) | ((x>>4)&0x0F0F0F0F);
-  return x;
+// convert from byte order to LFSR bit order
+static inline uint64_t get48(const uint8_t x[6]) {
+  return (((uint64_t)x[0])<<0) | (((uint64_t)x[1])<<8) | (((uint64_t)x[2])<<16) | (((uint64_t)x[3])<<24) | (((uint64_t)x[4])<<32) | (((uint64_t)x[5])<<40);
 }
 
-// reverse bits in each byte so they are like fed in
-static inline uint64_t keybits(uint64_t x) {
-  x = ((x<<1)&0xAAAAAAAAAAAAAAAA) | ((x>>1)&0x5555555555555555);
-  x = ((x<<2)&0xCCCCCCCCCCCCCCCC) | ((x>>2)&0x3333333333333333);
-  x = ((x<<4)&0xF0F0F0F0F0F0F0F0) | ((x>>4)&0x0F0F0F0F0F0F0F0F);
-  return x;
+// convert from byte order to LFSR bit order
+static inline uint32_t get32(const uint8_t x[4]) {
+  return (((uint32_t)x[0])<<0) | (((uint32_t)x[1])<<8) | (((uint32_t)x[2])<<16) | (((uint32_t)x[3])<<24);
 }
 
-/*
-static inline uint32_t L16(const uint32_t x) {
-  return ((x >> 15) ^ (x >> 13) ^ (x >> 12) ^ (x >> 10)) & 1;
+// convert from LFSR bit order to byte order
+static inline void put32(uint8_t x[4], uint32_t y) {
+  x[0] = (uint8_t)(y>>0);
+  x[1] = (uint8_t)(y>>8);
+  x[2] = (uint8_t)(y>>16);
+  x[3] = (uint8_t)(y>>24);
 }
-*/
 
 static inline uint32_t L16(const uint32_t x) {
-  return (uint32_t)__builtin_parity(x & 0b1011010000000000);
+  return (uint32_t)__builtin_parity(x & 0b1011010000000000000000);
 }
 
 static inline uint32_t suc(const uint32_t x) {
-    return (x << 1) | L16(x);
+    return (x >> 1) | (L16(x) << 31);
 }
 
-uint32_t crypto1_ar(uint32_t nt) {
-    nt = feedbits(nt);
-    for(int i = 0; i < 64; i++)
-        nt = suc(nt);
-    nt = feedbits(nt);
-    return nt;
+void crypto1_ar(uint8_t nt[4]) {
+  uint32_t x = get32(nt);
+  for(int i = 0; i < 64; i++)
+      x = suc(x);
+  put32(nt, x);
 }
 
-uint32_t crypto1_at(uint32_t nt) {
-    nt = feedbits(nt);
-    for(int i = 0; i < 96; i++)
-        nt = suc(nt);
-    nt = feedbits(nt);
-    return nt;
+void crypto1_at(uint8_t ar[4]) {
+  uint32_t x = get32(ar);
+  for(int i = 0; i < 32; i++)
+      x = suc(x);
+  put32(ar, x);
 }
-
-/*
-static inline uint64_t xL(const uint64_t x) {
-  return ((x >> 47) ^ (x >> 42) ^ (x >> 38) ^ (x >> 37) ^ (x >> 35) ^ (x >> 33) ^
-          (x >> 32) ^ (x >> 30) ^ (x >> 28) ^ (x >> 23) ^ (x >> 22) ^ (x >> 20) ^
-          (x >> 18) ^ (x >> 12) ^ (x >>  8) ^ (x >>  6) ^ (x >>  5) ^ (x >>  4)) & 1;
-}
-*/
 
 static inline uint64_t L(const uint64_t x) {
-  return (uint64_t)__builtin_parityll(x & 0b100001000110101101010000110101000001000101110000ll);
+  return (uint64_t)__builtin_parityll(x & 0b000011101000100000101011000010101101011000100001ll);
 }
 
 static inline uint64_t fa(const uint64_t y0, const uint64_t y1, const uint64_t y2, const uint64_t y3) {
@@ -102,149 +83,23 @@ static inline uint64_t fc(const uint64_t y0, const uint64_t y1, const uint64_t y
   return ((y0 | ((y1 | y4) & (y3 ^ y4))) ^ ((y0 ^ (y1 & y3)) & ((y2 ^ y3) | (y1 & y4)))) & 1;
 }
 
-/*
-static inline uint64_t fa(uint64_t y0, uint64_t y1, uint64_t y2, uint64_t y3) {
-  y0 &= 1; y1 &= 1; y2 &= 1; y3 &= 1;
-  return (0x26c7 >> (y0<<3 | y1<<2 | y2<<1 | y3)) & 1;
-}
-
-static inline uint64_t fb(uint64_t y0, uint64_t y1, uint64_t y2, uint64_t y3) {
-  y0 &= 1; y1 &= 1; y2 &= 1; y3 &= 1;
-  return (0x0dd3 >> (y0<<3 | y1<<2 | y2<<1 | y3)) & 1;
-}
-
-static inline uint64_t fc(uint64_t y0, uint64_t y1, uint64_t y2, uint64_t y3, uint64_t y4) {
-  y0 &= 1; y1 &= 1; y2 &= 1; y3 &= 1; y4 &= 1;
-  return (0x4457c3b3 >> (y0<<4 | y1<<3 | y2<<2 | y3<<1 | y4)) & 1;
-}
-*/
-
 static inline uint64_t f(const uint64_t x) {
-    return fc(fa(x>>38, x>>36, x>>34, x>>32),
-              fb(x>>30, x>>28, x>>26, x>>24),
-              fb(x>>22, x>>20, x>>18, x>>16),
-              fa(x>>14, x>>12, x>>10, x>> 8),
-              fb(x>> 6, x>> 4, x>> 2, x    ));
+    return fc(fa(x>> 9, x>>11, x>>13, x>>15),
+              fb(x>>17, x>>19, x>>21, x>>23),
+              fb(x>>25, x>>27, x>>29, x>>31),
+              fa(x>>33, x>>35, x>>37, x>>39),
+              fb(x>>41, x>>43, x>>45, x>>47));
 }
 
 static inline uint8_t crypto1_keystream_bit(crypto1_ctx_t *ctx) {
   const uint64_t bit = f(ctx->x);
-  ctx->x = (ctx->x << 1) | L(ctx->x);
-  ctx->x ^= ctx->f >> 31;   // feeding 0 is no-op, so we can just always do this
-  ctx->f <<= 1;
-  ctx->x ^= bit & ctx->fb;  // feed back bit (if fb=1), else feeding 0 is no-op
-
+  ctx->x = (ctx->x >> 1) | ((L(ctx->x) ^ (ctx->f & 1) ^ (bit & ctx->fb)) << 47);
+  ctx->f >>= 1;
   return (uint8_t)bit;
 }
 
 static inline uint8_t crypto1_keystream_peek(crypto1_ctx_t *ctx) {
   return (uint8_t)f(ctx->x);
-}
-
-// input: key, UID, (un-encrypted) nt
-// output: encrypted nt, encrypted parity bits
-void crypto1_auth1_nested_tag(crypto1_ctx_t *ctx, const uint8_t key[6], uint32_t uid, uint32_t *nt, uint32_t *nt_p) {
-  ctx->x = keybits((((uint64_t)key[0])<<40) | (((uint64_t)key[1])<<32) | (((uint64_t)key[2])<<24) | (((uint64_t)key[3])<<16) | (((uint64_t)key[4])<<8) | (((uint64_t)key[5])));
-  ctx->f = feedbits(uid^(*nt));   // 32 bit feed
-  ctx->fb = 0;                    // no feedback
-  uint32_t k = 0;
-  for(int i = 31; i >= 0; i--) {
-    k |= (uint32_t)(crypto1_keystream_bit(ctx) << (i ^ 7));
-    if(i%8 == 0) {
-      *nt_p <<= 8;
-      *nt_p |= (!__builtin_parity(*nt >> 24)) ^ crypto1_keystream_peek(ctx);
-      *nt = __builtin_rotateleft32(*nt, 8);
-    }
-  }
-  *nt ^= k;
-}
-
-// input: key, UID, received (encrypted) nt
-// output: decrypted nt
-void crypto1_auth1_nested_reader(crypto1_ctx_t *ctx, const uint8_t key[6], uint32_t uid, uint32_t *nt) {
-  ctx->x = keybits((((uint64_t)key[0])<<40) | (((uint64_t)key[1])<<32) | (((uint64_t)key[2])<<24) | (((uint64_t)key[3])<<16) | (((uint64_t)key[4])<<8) | (((uint64_t)key[5])));
-  ctx->f = feedbits(uid^(*nt));   // 32 bit feed
-  ctx->fb = 1;                    // feedback (decrypts nt in feed)
-  uint32_t k = 0;
-  for(int i = 31; i >= 0; i--)
-    k |= (uint32_t)(crypto1_keystream_bit(ctx) << (i ^ 7));
-  *nt ^= k;
-  ctx->fb = 0;                    // feedback off
-}
-
-// input: key, UID, (un-encrypted) nt
-void crypto1_auth1_plain(crypto1_ctx_t *ctx, const uint8_t key[6], uint32_t uid, uint32_t nt) {
-  ctx->x = keybits((((uint64_t)key[0])<<40) | (((uint64_t)key[1])<<32) | (((uint64_t)key[2])<<24) | (((uint64_t)key[3])<<16) | (((uint64_t)key[4])<<8) | (((uint64_t)key[5])));
-  ctx->f = feedbits(uid^nt);      // 32 bit feed
-  ctx->fb = 0;                    // no feedback
-  for(int i = 0; i < 32; i++)
-    crypto1_keystream_bit(ctx); // result ignored
-}
-
-// input: key, UID, (un-encrypted) nt
-// output: nt and parity bits to send to reader
-void crypto1_auth1_tag(crypto1_ctx_t *ctx, const uint8_t key[6], const uint32_t uid, uint32_t *nt, uint32_t *nt_p) {
-  if(ctx->state != CRYPTO1_OFF)
-    crypto1_auth1_nested_tag(ctx, key, uid, nt, nt_p);   // uses both encrypted nt and encrypted parity bits
-  else
-  {
-    crypto1_auth1_plain(ctx, key, uid, *nt);
-    *nt_p = crypto1_parity(*nt);   // return unencrypted parity bits
-  }
-}
-
-// input: key, UID, nt received from tag
-// output: un-encrypted nt
-void crypto1_auth1_reader(crypto1_ctx_t *ctx, const uint8_t key[6], const uint32_t uid, uint32_t *nt) {
-  if(ctx->state != CRYPTO1_OFF)
-    crypto1_auth1_nested_reader(ctx, key, uid, nt);
-  else
-    crypto1_auth1_plain(ctx, key, uid, *nt);
-}
-
-// inut: nr, ar(=suc64(nt))
-// output: encrypted nr, ar and their parity bits to send to tag
-void crypto1_auth2_reader(crypto1_ctx_t *ctx, uint32_t *nr, uint32_t *nr_p, uint32_t *ar, uint32_t *ar_p) {
-  ctx->f = feedbits(*nr);         // 32 bit feed
-  ctx->fb = 0;                    // no feedback
-  uint32_t k = 0;
-  for(int i = 31; i >= 0; i--) {
-    k |= (uint32_t)(crypto1_keystream_bit(ctx) << (i ^ 7));
-    if(i%8 == 0) {
-      *nr_p <<= 8;
-      *nr_p |= (!__builtin_parity(*nr >> 24)) ^ crypto1_keystream_peek(ctx);
-      *nr = __builtin_rotateleft32(*nr, 8);
-    }
-  }
-  *nr ^= k;
-
-  k = 0;
-  for(int i = 31; i >= 0; i--) {
-    k |= (uint32_t)(crypto1_keystream_bit(ctx) << (i ^ 7));
-    if(i%8 == 0) {
-      *ar_p <<= 8;
-      *ar_p |= (!__builtin_parity(*ar >> 24)) ^ crypto1_keystream_peek(ctx);
-      *ar = __builtin_rotateleft32(*ar, 8);
-    }
-  }
-  *ar ^= k;
-}
-
-// inut: encrypted nr, ar received from reader
-// output: un-encrypted nr, ar
-void crypto1_auth2_tag(crypto1_ctx_t *ctx, uint32_t *nr, uint32_t *ar) {
-  ctx->f = feedbits(*nr);         // 32 bit feed
-  ctx->fb = 1;                    // feedback (decrypts nr in feed)
-  uint32_t k = 0;
-  for(int i = 31; i >= 0; i--)
-    k |= (uint32_t)(crypto1_keystream_bit(ctx) << (i ^ 7));
-  *nr ^= k;
-  ctx->fb = 0;                    // feedback off
-
-  k = 0;
-  for(int i = 0; i < 32; i++)
-    k |= (uint32_t)(crypto1_keystream_bit(ctx) << (i ^ 7));
-  *ar ^= k;
 }
 
 static uint8_t crypto1_decrypt_8(crypto1_ctx_t *ctx, const uint8_t d) {
@@ -262,6 +117,17 @@ static uint8_t crypto1_encrypt_8(crypto1_ctx_t *ctx, const uint8_t d, uint8_t *p
   return d ^ k;
 }
 
+void crypto1_decrypt_bits(crypto1_ctx_t *ctx, uint8_t *data, size_t len) {
+  uint8_t k = 0;
+  for(int i = 0; i < len; i++)
+    k |= crypto1_keystream_bit(ctx) << i;
+  *data ^= k;
+}
+
+void crypto1_encrypt_bits(crypto1_ctx_t *ctx, uint8_t *data, size_t len) {
+  crypto1_decrypt_bits(ctx, data, len);   // same thing, no parity for individual bits
+}
+
 void crypto1_decrypt(crypto1_ctx_t *ctx, uint8_t *data, size_t len) {
   for(int i = 0; i < len; i++)
     data[i] = crypto1_decrypt_8(ctx, data[i]);
@@ -270,4 +136,69 @@ void crypto1_decrypt(crypto1_ctx_t *ctx, uint8_t *data, size_t len) {
 void crypto1_encrypt(crypto1_ctx_t *ctx, uint8_t *data, const size_t len, uint8_t *parity) {
   for(int i = 0; i < len; i++)
     data[i] = crypto1_encrypt_8(ctx, data[i], &parity[i]);
+}
+
+// input: key, UID, (un-encrypted) nt
+// output: encrypted nt, encrypted parity bits
+void crypto1_auth1_nested_tag(crypto1_ctx_t *ctx, const uint8_t key[6], const uint8_t uid[4], uint8_t nt[4], uint8_t nt_p[4]) {
+  ctx->x = get48(key);
+  ctx->f = get32(uid)^get32(nt);  // 32 bit feed
+  crypto1_encrypt(ctx, nt, 4, nt_p);
+}
+
+// input: key, UID, received (encrypted) nt
+// output: decrypted nt
+void crypto1_auth1_nested_reader(crypto1_ctx_t *ctx, const uint8_t key[6], const uint8_t uid[4], uint8_t nt[4]) {
+  ctx->x = get48(key);
+  ctx->f = get32(uid)^get32(nt);  // 32 bit feed
+  ctx->fb = 1;                    // feedback (decrypts nt in feed)
+  crypto1_decrypt(ctx, nt, 4);
+  ctx->fb = 0;                    // feedback off
+}
+
+// input: key, UID, (un-encrypted) nt
+void crypto1_auth1_plain(crypto1_ctx_t *ctx, const uint8_t key[6], const uint8_t uid[4], const uint8_t nt[4]) {
+  ctx->x = get48(key);
+  ctx->f = get32(uid)^get32(nt);  // 32 bit feed
+  for(int i = 0; i < 32; i++)
+    crypto1_keystream_bit(ctx);   // just cycling the LFSR to load ctx->f
+}
+
+// input: key, UID, (un-encrypted) nt
+// output: nt and parity bits to send to reader
+void crypto1_auth1_tag(crypto1_ctx_t *ctx, const uint8_t key[6], const uint8_t uid[4], uint8_t nt[4], uint8_t nt_p[4]) {
+  if(ctx->state != CRYPTO1_OFF)
+    crypto1_auth1_nested_tag(ctx, key, uid, nt, nt_p);
+  else
+  {
+    crypto1_auth1_plain(ctx, key, uid, nt);
+    crypto1_parity(nt, nt_p, 4);   // return unencrypted parity bits
+  }
+}
+
+// input: key, UID, nt received from tag
+// output: un-encrypted nt
+void crypto1_auth1_reader(crypto1_ctx_t *ctx, const uint8_t key[6], const uint8_t uid[4], uint8_t nt[4]) {
+  if(ctx->state != CRYPTO1_OFF)
+    crypto1_auth1_nested_reader(ctx, key, uid, nt);
+  else
+    crypto1_auth1_plain(ctx, key, uid, nt);
+}
+
+// inut: nr, ar(=suc64(nt))
+// output: encrypted nr, ar and their parity bits to send to tag
+void crypto1_auth2_reader(crypto1_ctx_t *ctx, uint8_t nr[4], uint8_t nr_p[4], uint8_t ar[4], uint8_t ar_p[4]) {
+  ctx->f = get32(nr);             // 32 bit feed
+  crypto1_encrypt(ctx, nr, 4, nr_p);
+  crypto1_encrypt(ctx, ar, 4, ar_p);
+}
+
+// inut: encrypted nr, ar received from reader
+// output: un-encrypted nr, ar
+void crypto1_auth2_tag(crypto1_ctx_t *ctx, uint8_t nr[4], uint8_t ar[4]) {
+  ctx->f = get32(nr);             // 32 bit feed
+  ctx->fb = 1;                    // feedback (decrypts nr in feed)
+  crypto1_decrypt(ctx, nr, 4);
+  ctx->fb = 0;                    // feedback off
+  crypto1_decrypt(ctx, ar, 4);
 }

@@ -65,62 +65,63 @@ int nfc_target_receive_crypto1_bytes(nfc_device *device, crypto1_ctx_t *ctx, uin
   return rx_len/8 - (crc ? 2 : 0);
 }
 
-static inline void put32(const uint32_t u, uint8_t *p) {
-  p[0] = (uint8_t)(u >> 24);
-  p[1] = (uint8_t)(u >> 16);
-  p[2] = (uint8_t)(u >>  8);
-  p[3] = (uint8_t)(u);
-}
-
-static inline uint32_t get32(const uint8_t *p) {
-  return (((uint32_t)p[0])<<24) | (((uint32_t)p[1])<<16) | (((uint32_t)p[2])<<8) | ((uint32_t)p[3]);
-}
-
 int emulate_auth(emulator_data_t *ed, const uint8_t *data_in, uint8_t *data_out) {
-  uint32_t nt0 = (uint32_t)random(), nt = nt0, nt_p = 0;
-  uint8_t *key = (data_in[0] == 0x60) ? ed->tag->amb[block_to_trailer(data_in[1])].mbt.abtKeyA : ed->tag->amb[block_to_trailer(data_in[1])].mbt.abtKeyB;
-  uint32_t uid = get32(ed->tag->amb[0].mbm.abtUID);
+  mf_key_type_t key_type = (data_in[0] == 0x60) ? MF_KEY_A : MF_KEY_B;
+  uint8_t block = data_in[1];
+  const uint8_t *key = (key_type == MF_KEY_A) ? ed->tag->amb[block_to_trailer(block)].mbt.abtKeyA : ed->tag->amb[block_to_trailer(block)].mbt.abtKeyB;
+  //const uint8_t *uid = ed->target->nti.nai.abtUid;
+  const uint8_t *uid = "1234";
+
+  printf("    uid: "); print_hex_array_sep(uid, 4, " "); printf("\n");
+
+  uint8_t data[16], pdata[16];
 
   // initialize
-  crypto1_auth1_tag(&ed->ctx, key, uid, &nt, &nt_p);
+  uint8_t nt[4];
+  //*((uint32_t*)(nt)) = (uint32_t)random();  // fill with random bits
+  *((uint32_t*)(nt)) = 0;  // fill with random bits
+  memcpy(data, nt, 4);
+  printf("    nt: "); print_hex_array_sep(nt, 4, " "); printf("\n");
+  crypto1_auth1_tag(&ed->ctx, key, uid, data, pdata);
+  printf("    nt (enc'd): "); print_hex_array_sep(data, 4, " "); printf("\n");
   ed->ctx.state = CRYPTO1_OFF;
 
   // send (possibly encrypted) nt and receive response
-  uint8_t par_out[8];
-  put32(nt, data_out);
-  put32(nt_p, par_out);
-  printf("    Sending nonce 0x%0x (original: 0x%0x): ", nt, nt0);
-  print_hex_array_sep(data_out, 4, " ");
-  printf("\n");
   int rx_len = 0;
-  if (nfc_target_send_bits(ed->device, data_out, 4*8, par_out) < 0 ||
-      (rx_len = nfc_target_receive_bits(ed->device, data_out, 8*8, par_out)) < 0) {
+  if (nfc_target_send_bits(ed->device, data, 4*8, pdata) < 0 ||
+      (rx_len = nfc_target_receive_bits(ed->device, data, 8*8, pdata)) < 0) {
     nfc_perror(ed->device, "auth1");
     return 0;
   }
-  //if(rx_len != 64) return 0;
-  printf("    Received (%u bits): ", rx_len);
-  rx_len /= 8;
-  print_hex_array_sep(data_out, (size_t)rx_len, " ");
+  printf("    Received (%i bits): ", rx_len);
+  print_hex_array_sep(data, (size_t)rx_len/8, " ");
   printf("\n");
+  if(rx_len != 64) return -1;
+
   // interpret received encrypted nr, ar
-  uint32_t nr = get32(data_out);
-  uint32_t ar = get32(data_out+4);
-  crypto1_auth2_tag(&ed->ctx, &nr, &ar);
-  if(crypto1_ar(nt0) != ar) {
-    printf("Error: ar does not match: got 0x%0x expected 0x%0x\n", ar, crypto1_ar(nt0));
-    return 0;
+  printf("    nr (enc): "); print_hex_array_sep(data, 4, " "); printf("\n");
+  printf("    ar (enc): "); print_hex_array_sep(data+4, 4, " "); printf("\n");
+  crypto1_auth2_tag(&ed->ctx, data, data+4);
+  printf("    nr: "); print_hex_array_sep(data, 4, " "); printf("\n");
+  printf("    ar: "); print_hex_array_sep(data+4, 4, " "); printf("\n");
+  crypto1_ar(nt);
+  if(memcmp(nt, data+4, 4) != 0) {
+    printf("Error: ar does not match: got "); print_hex_array_sep(data+4, 4, " ");
+    printf("   expected: "); print_hex_array_sep(nt, 4, " "); printf("\n");
+    return -1;
   }
+
   // return at to complete the authentication
-  uint32_t at = crypto1_at(nr);
-  put32(at, data_out);
-  ed->ctx.state = (data_in[0] == 0x60) ? CRYPTO1_ON_A : CRYPTO1_ON_B;
-  if (nfc_target_send_crypto1_bytes(ed->device, &ed->ctx, data_out, 4, false) < 0) {
+  crypto1_at(nt);
+  memcpy(data, nt, 4);
+  ed->ctx.state = (key_type == MF_KEY_A) ? CRYPTO1_ON_A : CRYPTO1_ON_B;
+  if (nfc_target_send_crypto1_bytes(ed->device, &ed->ctx, data, 4, false) < 0) {
     ed->ctx.state = CRYPTO1_OFF;
     nfc_perror(ed->device, "auth2");
     return 0;
   }
 
+  printf("Successfully authenticated\n");
   return 0;
 }
 
@@ -182,8 +183,6 @@ int emulate_target_io(emulator_data_t *ed, const uint8_t *data_in, const size_t 
   return res;
 }
 
-
-
 #define ISO7816_C_APDU_COMMAND_HEADER_LEN 4
 #define ISO7816_SHORT_APDU_MAX_DATA_LEN 256
 #define ISO7816_SHORT_C_APDU_MAX_OVERHEAD 2
@@ -233,22 +232,7 @@ int emulate_target(emulator_data_t *ed)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/* Reader emulation functions */
 
 int nfc_initiator_transceive_crypto1_bytes(nfc_device *device, crypto1_ctx_t *ctx, uint8_t *data_out, size_t len, uint8_t *data_in, size_t max_len, const bool crc) {
   uint8_t tx[len+2], ptx[len+2], prx[max_len];
@@ -266,65 +250,67 @@ int nfc_initiator_transceive_crypto1_bytes(nfc_device *device, crypto1_ctx_t *ct
     crypto1_encrypt(ctx, tx, len, ptx);
   int rx_len = nfc_initiator_transceive_bits(device, tx, 8*len, ptx, data_in, max_len, prx);
   if(rx_len < 0) return rx_len;
-  if(rx_len%8 != 0) printf("Did not receive full bytes: %u, %u bits left\n", rx_len, rx_len%8);
-  if(ctx->state != CRYPTO1_OFF)
+  if(rx_len%8 != 0) printf("Did not receive full bytes: %u bits, %u bits left\n", rx_len, rx_len%8);
+  if(ctx->state == CRYPTO1_ON_A || ctx->state == CRYPTO1_ON_B)
+  {
     crypto1_decrypt(ctx, data_in, (size_t)rx_len/8);
-  return rx_len/8 - (crc ? 2 : 0);
+    crypto1_decrypt_bits(ctx, data_in+(rx_len/8)+1, (size_t)rx_len%8);    // does this mean auth is lost and reselect needed?
+  }
+  return rx_len/8 - ((crc && rx_len>15) ? 2 : 0);
 }
 
 int emulate_reader_auth(emulator_data_t *ed, mf_key_type_t key_type, uint8_t block) {
   uint8_t *key = (key_type == MF_KEY_A) ? ed->tag->amb[block_to_trailer(block)].mbt.abtKeyA : ed->tag->amb[block_to_trailer(block)].mbt.abtKeyB;
-  uint32_t uid = get32(ed->target->nti.nai.abtUid);
+  uint8_t *uid = ed->target->nti.nai.abtUid;
 
-  printf("    Key: ");
-  print_hex_array_sep(key, (size_t)6, " ");
-  printf("\n");
+  printf("    Key: "); print_hex_array_sep(key, (size_t)6, " "); printf("\n");
 
-  uint8_t data[16], pdata[16], datb[16], pdatb[16];
+  uint8_t data[16], pdata[16];
 
   // send read command
   data[0] = (key_type == MF_KEY_A) ? 0x60 : 0x61;
   data[1] = block;
   iso14443a_crc_append(data, 2);
+  if( ed->ctx.state != CRYPTO1_OFF )
+    ed->ctx.state = CRYPTO1_REAUTH;
   int rx_len = nfc_initiator_transceive_crypto1_bytes(ed->device, &ed->ctx, data, 4, data, sizeof(data), false);
-  if(rx_len < 4) return 0;
+  if(rx_len < 4) return -1;
 
-  printf("    Received: ");
-  print_hex_array_sep(data, (size_t)rx_len, " ");
-  printf("\n");
+  printf("    Received: "); print_hex_array_sep(data, (size_t)rx_len, " "); printf("\n");
 
   // initialize with nt sent by tag
-  uint32_t nt = get32(data);
-  printf("nt (enc): %08x ", nt);
-  crypto1_auth1_reader(&ed->ctx, key, uid, &nt);
-  printf("  (dec): %08x\n", nt);
+  uint8_t nt[4];
+  memcpy(nt, data, 4);
+  printf("    nt (rec'd): "); print_hex_array_sep(nt, 4, " "); printf("\n");
+  crypto1_auth1_reader(&ed->ctx, key, uid, nt);
+  printf("    nt (dec'd): "); print_hex_array_sep(nt, 4, " "); printf("\n");
   ed->ctx.state = CRYPTO1_OFF;
 
   // send encrypted nr, ar
-  uint32_t ar = crypto1_ar(nt), ar_p = 0;
-  //uint32_t nr = (uint32_t)random(), nr_p = 0;
-  uint32_t nr = 0, nr_p = 0;
-  printf("nr: %08x       ar: %08x\n", nr, ar);
-  crypto1_auth2_reader(&ed->ctx, &nr, &nr_p, &ar, &ar_p);
-  printf("nr (enc): %08x (%08x)       ar (enc): %08x (%08x)\n", nr, nr_p, ar, ar_p);
-  put32(nr, data);
-  put32(ar, data+4);
-  put32(nr_p, pdata);
-  put32(ar_p, pdata+4);
-  rx_len = nfc_initiator_transceive_bits(ed->device, data, 8*8, pdata, datb, sizeof(datb)*8, pdatb);  // fails here (meaning parity bits are wrong?)
-  if(rx_len < 0) return 0;
+  *((uint32_t*)(data)) = (uint32_t)random();  // fill with random bits
+  //*((uint32_t*)(data)) = 0;  // testing with nr = 0
+  crypto1_ar(nt);
+  memcpy(data+4, nt, 4);
+  printf("    nr: "); print_hex_array_sep(data, 4, " "); printf("\n");
+  printf("    ar: "); print_hex_array_sep(data+4, 4, " "); printf("\n");
+  crypto1_auth2_reader(&ed->ctx, data, pdata, data+4, pdata+4);
+  printf("    nr (enc): "); print_hex_array_sep(data, 4, " "); printf("\n");
+  printf("    ar (enc): "); print_hex_array_sep(data+4, 4, " "); printf("\n");
+  rx_len = nfc_initiator_transceive_bits(ed->device, data, 8*8, pdata, data, sizeof(data)*8, pdata);
+  if(rx_len < 0) return -1;
 
   printf("    Received (%i bits): ", rx_len);
-  print_hex_array_sep(datb, (size_t)rx_len/8, " ");
+  print_hex_array_sep(data, (size_t)rx_len/8, " ");
   printf("\n");
 
-  if(rx_len < 4*8) return 0;
-  crypto1_decrypt(&ed->ctx, datb, 4);
+  if(rx_len != 4*8) return -1;
+  crypto1_decrypt(&ed->ctx, data, 4);
   // check received encrypted at
-  uint32_t at = get32(datb);
-  if(crypto1_at(nt) != at) {  // nt or nr?
-    printf("Error: ar does not match: got 0x%0x expected 0x%0x\n", at, crypto1_at(nt));
-    return 0;
+  crypto1_at(nt);
+  if(memcmp(nt, data, 4) != 0) {
+    printf("Error: ar does not match: got "); print_hex_array_sep(data, 4, " ");
+    printf("   expected: "); print_hex_array_sep(nt, 4, " "); printf("\n");
+    return -1;
   }
 
   ed->ctx.state = (key_type == MF_KEY_A) ? CRYPTO1_ON_A : CRYPTO1_ON_B;
@@ -345,23 +331,27 @@ int emulate_reader(emulator_data_t *ed)
       nfc_device_set_property_bool(ed->device, NP_EASY_FRAMING, false) < 0 ||
       nfc_device_set_property_int(ed->device, NP_TIMEOUT_COM, 100) < 0 || //   up from 52ms
       nfc_device_set_property_bool(ed->device, NP_HANDLE_PARITY, false) < 0 ) {
-    return 0;
+    return -1;
   }
 
   bzero(&ed->ctx, sizeof(ed->ctx));
 
-  emulate_reader_auth(ed, MF_KEY_A, 0);
+  if( emulate_reader_auth(ed, MF_KEY_A, 0) )
+    return -1;
 
   uint8_t tx[48], rx[48];
   int rx_len;
-  tx[0] = 48; tx[1] = 0;
+  tx[0] = 48; tx[1] = 3;
   rx_len = nfc_initiator_transceive_crypto1_bytes(ed->device, &ed->ctx, tx, 2, rx, sizeof(rx), true);
+  if(rx_len < 0) return -1;
   printf("    Received (%i bytes): ", rx_len);
   print_hex_array_sep(rx, (size_t)rx_len, " ");
   printf("\n");
 
   emulate_reader_auth(ed, MF_KEY_A, 4);
+  tx[0] = 48; tx[1] = 7;
   rx_len = nfc_initiator_transceive_crypto1_bytes(ed->device, &ed->ctx, tx, 2, rx, sizeof(rx), true);
+  if(rx_len < 0) return -1;
   printf("    Received (%i bytes): ", rx_len);
   print_hex_array_sep(rx, (size_t)rx_len, " ");
   printf("\n");
