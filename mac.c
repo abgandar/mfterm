@@ -32,13 +32,8 @@ unsigned char current_mac_key[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
  * bytes. The length specifies the length of the input in bytes. It
  * will be zero padded to 8 byte alignment if required.
  */
-int compute_mac(const unsigned char* input,
-		unsigned char* output,
-		const unsigned char* key,
-		long length) {
-
-  DES_cblock des_key =
-    { key[0], key[1], key[2], key[3], key[4], key[5], key[6], key[7] };
+int compute_mac(const unsigned char* input, unsigned char* output, const unsigned char* key, long length) {
+  DES_cblock des_key = { key[0], key[1], key[2], key[3], key[4], key[5], key[6], key[7] };
 
   // todo zeropad input if required
   const unsigned char* padded_input = input;
@@ -71,10 +66,7 @@ int compute_mac(const unsigned char* input,
  * If update is * nonzero, the mac of the current tag is updated. If
  * not, the MAC is simply printed.
  */
-unsigned char* compute_block_mac(unsigned int block,
-                                 const unsigned char* key,
-                                 int update) {
-
+unsigned char* compute_block_mac(unsigned int block, const unsigned char* key, int update) {
   static unsigned char output[8];
 
   // Input to MAC algo [ 4 serial | 14 data | 6 0-pad ]
@@ -83,8 +75,7 @@ unsigned char* compute_block_mac(unsigned int block,
   memcpy(&input[4], current_tag.amb[block].mbd.abtData, 14);
   memset(&input[18], 0, 6);
 
-  int res = 0;
-  res = compute_mac(input, output, key, 24);
+  int res = compute_mac(input, output, key, 24);
 
   // Ret null on error
   if (res != 0) return NULL;

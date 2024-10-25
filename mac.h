@@ -29,10 +29,7 @@ extern unsigned char current_mac_key[];
  * bytes. The length specifies the length of the input in bytes. It
  * will be zero padded to 8 byte alignment if required.
  */
-int compute_mac(const unsigned char* input,
-                unsigned char* output,
-                const unsigned char* key,
-                long length);
+int compute_mac(const unsigned char* input, unsigned char* output, const unsigned char* key, long length);
 
 /**
  * Compute the MAC of a given block with the specified 8 byte
@@ -43,8 +40,6 @@ int compute_mac(const unsigned char* input,
  * If update is * nonzero, the mac of the current tag is updated. If
  * not, the MAC is simply printed.
  */
-unsigned char* compute_block_mac(unsigned int block,
-                                 const unsigned char* key,
-                                 int update);
+unsigned char* compute_block_mac(unsigned int block, const unsigned char* key, int update);
 
 #endif

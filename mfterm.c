@@ -53,7 +53,6 @@ int execute_line(char* line);
 void initialize_readline();
 void free_readline();
 void parse_cmdline(int argc, char** argv);
-
 void print_help();
 void print_version();
 
