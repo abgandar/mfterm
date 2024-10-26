@@ -288,8 +288,8 @@ int ndef_put_sectors(mf_tag_t* tag, size_t s1, size_t s2, const uint8_t* ndef, c
   } else {
     tlv[0] = 0x03;
     tlv[1] = 0xFF;
-    tlv[2] = (uint8_t)((size>>8) & 0x0F);
-    tlv[3] = (uint8_t)(size & 0x0F);
+    tlv[2] = (uint8_t)((size>>8) & 0xFF);
+    tlv[3] = (uint8_t)(size & 0xFF);
     memcpy(tlv+4, ndef, size);
   }
   tlv[tlv_size-1] = 0xfe;   // NDEF terminal TLV
@@ -555,7 +555,7 @@ int ndef_print_records(const uint8_t* ndef, size_t len) {
         printf("Unknown NDEF record\n");
         ndef_print_unknown_record(&r);
     }
-  } while(!(r.flags & NDEF_ME) && p<end);
+  } while(!(r.flags & NDEF_ME) && p < end);
   return 0;
 }
 
@@ -579,7 +579,7 @@ int ndef_print(mf_tag_t* tag, size_t sector) {
 
   // find first NDEF TLV tag by iterating through all data bytes
   p = buf;
-  size_t len;
+  size_t len = 0;
   while (p < end) {
     const uint8_t tag = *p++;
     switch(tag) {
@@ -587,23 +587,27 @@ int ndef_print(mf_tag_t* tag, size_t sector) {
         continue;   // empty TLV, just skip
       case 0xfe:
         // end of records TLV, we're done
-        printf("No NDEF TLV found in sector\n");
+        printf("No NDEF TLV found in sector(s)\n");
         return -1;
     }
     // any other TLV: read size (potentially read 3 bytes past end, OK as over-allocated)
     if (*p < 0xFF) {
       len = *p++;
     } else {
-      len = (p[1]<<8) & (p[2]);
+      len = (size_t)((p[1]<<8) | (p[2]));
       p += 3;
     }
     if (tag == 0x03) break;    // found it!
     p += len; // not what we want, skip
   }
 
-  if(p >= end) {
-    // end of records TLV, we're done
-    printf("No NDEF TLV found in sector\n");
+  if (p >= end) {
+    // end of data
+    printf("No NDEF TLV found in sector(s)\n");
+    return -1;
+  } else if (p+len >= end) {
+    // we found one, but its length is wrong
+    printf("NDEF TLV found but length invalid\n");
     return -1;
   }
 
