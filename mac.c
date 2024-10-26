@@ -17,56 +17,54 @@
  * along with mfterm.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <openssl/des.h>
+#include <openssl/evp.h>
+#include <openssl/provider.h>
 #include <string.h>
 #include "util.h"
 #include "mac.h"
 #include "tag.h"
 
 // The DES MAC key in use
-unsigned char current_mac_key[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+unsigned char current_mac_key[8] = { 0 };
 
 
 /**
- * Compute a DES MAC, use DES in CBC mode. Key and output should be 8
- * bytes. The length specifies the length of the input in bytes. It
- * will be zero padded to 8 byte alignment if required.
+ * Compute a DES MAC, use DES in CBC mode.
+ * The length specifies the length of the input in bytes and must be a multiple of 8.
  */
-int compute_mac(const unsigned char* input, unsigned char* output, const unsigned char* key, long length) {
-  DES_cblock des_key = { key[0], key[1], key[2], key[3], key[4], key[5], key[6], key[7] };
+int compute_mac(const unsigned char* input, unsigned char output[8], const unsigned char key[8], long length) {
+  static int init = 0;
+  if(!init) {
+    OSSL_PROVIDER_load(NULL, "legacy");
+    OSSL_PROVIDER_load(NULL, "default");
+    init = 1;
+    // OSSL_PROVIDER_unload(legacy);
+    // OSSL_PROVIDER_unload(deflt);
+  }
 
-  // todo zeropad input if required
-  const unsigned char* padded_input = input;
+  if(length%8) return -1;
 
-  // Generate a key schedule. Don't be picky, allow bad keys.
-  DES_key_schedule schedule;
-  DES_set_key_unchecked(&des_key, &schedule);
+  EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+  EVP_CIPHER *cipher = EVP_CIPHER_fetch(NULL, "DES-CBC", NULL);
+  if(!ctx || !cipher) return -1;
 
-  // IV is all zeroes
-  unsigned char ivec[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-
-  // Compute the DES in CBC
-  DES_ncbc_encrypt(padded_input, output, length, &schedule, &ivec, 1);
-
-  // Move up and truncate (we only want 8 bytes)
-  for (int i = 0; i < 8; ++i)
-    output[i] = output[length - 8 + i];
-  for (int i = 8; i < length; ++i)
-    output[i] = 0;
-
-  return 0;
+  int res = -1, l;
+  unsigned char ivec[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };      // IV is all zeroes
+  if(!EVP_EncryptInit(ctx, cipher, key, ivec)) goto error;
+  for(; length>0; length -= 8, input += 8)
+    if(!EVP_EncryptUpdate(ctx, output, &l, input, 8)) goto error;
+  res = 0;
+error:
+  EVP_CIPHER_free(cipher);
+  EVP_CIPHER_CTX_free(ctx);
+  return res;
 }
 
 /**
- * Compute the MAC of a given block with the specified 8 byte
- * key. Return a 8 byte MAC value.
- *
- * The input to MAC algo [ 4 serial | 14 data | 6 0-pad ]
- *
- * If update is * nonzero, the mac of the current tag is updated. If
- * not, the MAC is simply printed.
+ * Compute the MAC of a given block with the specified 8 byte key. Return a 8 byte MAC value.
+ * If update is nonzero, the mac of the current tag is updated.
  */
-unsigned char* compute_block_mac(unsigned int block, const unsigned char* key, int update) {
+unsigned char* compute_block_mac(unsigned int block, const unsigned char key[8], int update) {
   static unsigned char output[8];
 
   // Input to MAC algo [ 4 serial | 14 data | 6 0-pad ]
@@ -75,15 +73,9 @@ unsigned char* compute_block_mac(unsigned int block, const unsigned char* key, i
   memcpy(&input[4], current_tag.amb[block].mbd.abtData, 14);
   memset(&input[18], 0, 6);
 
-  int res = compute_mac(input, output, key, 24);
-
-  // Ret null on error
-  if (res != 0) return NULL;
-
-  // Should the new MAC be written back?
-  if (update) {
+  if(compute_mac(input, output, key, 24)) return NULL;
+  if (update)
     memcpy(&current_tag.amb[block].mbd.abtData[14], output, 2);
-  }
 
   return output;
 }
