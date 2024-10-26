@@ -173,22 +173,32 @@ int execute_line (char* line) {
   line += strspn(line, " \t\n\r");
 
   // pre-parse arguments
-  char* argv[128], *next;
+  char* argv[128], *next, *start = line, *end = line+strlen(line);
   size_t argc = 0, argl[128];
   while (argc < 128 && (argv[argc] = strqtok(line, argl+argc, &next))) {
     if (!next) {
-      fprintf (stderr, "Unbalanced quotes or invalid hex string.\n");
+      fprintf(stderr, "Unbalanced quotes or invalid hex or file content string.\n");
       return -1;
     }
     argc++;
     line = next;
   }
   if (argc == 128) {
-    fprintf (stderr, "Too many arguments: %s\n", line);
+    fprintf(stderr, "Too many arguments: %s\n", line);
     return -1;
   }
 
-  return (*(command->func))(argv, argl, argc);
+  // execute command
+  const int res = (*(command->func))(argv, argl, argc);
+
+  // free possibly allocated arguments
+  for(int i = 0; i < argc; i++){
+    if(argv[i] < start || argv[i] > end){
+      free(argv[i]);
+    }
+  }
+
+  return res;
 }
 
 void initialize_readline()

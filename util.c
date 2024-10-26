@@ -105,10 +105,66 @@ static uint8_t hexdigit(const unsigned char c) {
     return 255;
 }
 
+// read hex string
+static int hexstr(char* str, size_t* len) {
+  int digits = 0;
+  char* b = str, *res = str;
+  for(uint8_t x = hexdigit((unsigned char)*str); x != 255; x = hexdigit((unsigned char)*(++str)) ) {
+    if(x == 254) {    // whitespace
+      if(digits > 0) {
+        b++;
+        digits = 0;
+      }
+    } else {          // hex digit
+      if(digits > 0) {
+        *b = (char)(*b<<4 | x);
+        b++;
+        digits = 0;
+      } else {
+        *b = (char)x;
+        digits = 1;
+      }
+    }
+  }
+  if(digits) b++;
+  if(len) *len = (size_t)(b-res);
+  int r = *str;
+  *b = '\0';    // null terminate for good measure (not counted in len, of course)
+  return r;     // conversion worked if *str == '\0' (before we possibly set it to 0)
+}
+
+// read a file and replace res with pointer to file content
+static int readfile(char** res, size_t* len) {
+  FILE *f = fopen(*res, "r");
+  if(!f) return -1;
+  fseek(f, 0, SEEK_END);
+  const long flen = ftell(f);
+  if(flen < 0 || flen > 1024*1024){
+    fclose(f);
+    return -2;   // only read up to 1 Mb
+  }
+  fseek(f, 0, SEEK_SET);
+  char* data = malloc((size_t)flen+1);
+  if(!data){
+    fclose(f);
+     return -3;
+  }
+  const size_t rlen = fread(data, 1, (size_t)flen, f);
+  fclose(f);
+  if(rlen != flen){
+    free(data);
+    return -4;
+  }
+  data[rlen] = '\0';    // null terminate for good measure (not counted in len, of course)
+  *res = data;
+  if(len) *len = rlen;
+  return 0;
+}
+
 // Read next quoted string argument
 // (ret,len,end)
 // NULL,0,NULL: end of string or no string
-// x,l,NULL: quoted string not terminated
+// x,l,NULL: quoted string not terminated or error in type conversion
 char* strqtok(char* str, size_t* len, char** end) {
   if(!str) {
     if(end) *end = NULL;
@@ -123,46 +179,23 @@ char* strqtok(char* str, size_t* len, char** end) {
     return NULL;
   }
 
-  char delim;
-  if(*str == '\'') {
-    // read hex string and return
-    delim = '\'';
-    str++;
-    int digits = 0;
-    char* b = str, *res = str;
-    for(uint8_t x = hexdigit((unsigned char)*str); x != 255; x = hexdigit((unsigned char)*(++str)) ) {
-      if(x == 254) {    // whitespace
-        if(digits > 0) {
-          b++;
-          digits = 0;
-        }
-      } else {          // hex digit
-        if(digits > 0) {
-          *b = (char)(*b<<4 | x);
-          b++;
-          digits = 0;
-        } else {
-          *b = (char)x;
-          digits = 1;
-        }
-      }
-    }
-    if(digits) b++;
-    if(end) {
-      if (*str != delim) {
-        *end = NULL;   // unclosed quotes or invalid hex character: return NULL
-      } else {
-        *end = str + 1 + strspn(str+1, " ");
-      }
-    }
-    if(len) *len = (size_t)(b-res);
-    *b = '\0';    // null terminate for good measure (not counted in len, of course)
-    return res;
+  char delim, type = '\0';
+
+  // type modifiers
+  switch(*str) {
+    case '$':
+    case '<':
+      type = *str;
+      str++;
+      break;
   }
 
-  // read possibly quoted ASCII string with escapes
+  // read possibly quoted ASCII string with possible escapes
   if(*str == '"') {
     delim = '"';
+    str++;
+  } else if(*str == '\'') {
+    delim = '\'';
     str++;
   } else {
     delim = ' ';
@@ -170,9 +203,10 @@ char* strqtok(char* str, size_t* len, char** end) {
   char* b = str, *res = str;
   int escape = 0, hex = 0;
   while(*str != '\0') {
+    // within a hex escape?
     if(hex > 0) {
       const uint8_t x = hexdigit((unsigned char)*str);
-      if(x > 15) {  // not a hex char?
+      if(x > 15) {  // not a hex char? End of hex escape, handle normally
         if(hex > 1) b++;
         hex = 0;
       } else {
@@ -182,14 +216,17 @@ char* strqtok(char* str, size_t* len, char** end) {
         continue;
       }
     }
+    // end of string?
     if(!escape && *str == delim) {
       break;
     }
-    if(!escape && *str == '\\') {
+    // entering an escape?
+    if(delim == '"' && !escape && *str == '\\') {
       escape = 1;
       str++;
       continue;
     }
+    // within an escape?
     if(escape) {
       escape = 0;
       switch(*str) {
@@ -227,10 +264,15 @@ char* strqtok(char* str, size_t* len, char** end) {
       }
       str++;
     } else {
+      // copy character verbatim
       *b++ = *str++;
     }
   };
+
+  // end any open hex escape
   if(hex > 1) b++;
+
+  // close result string
   if(end) {
     if (*str == '\0') {
       *end = delim==' ' ? str : NULL;   // unclosed quotes: return NULL
@@ -240,5 +282,19 @@ char* strqtok(char* str, size_t* len, char** end) {
   }
   if(len) *len = (size_t)(b-res);
   *b = '\0';
+
+  // Handle type modifiers of result string
+  int r;
+  switch(type) {
+    case '$':
+      r = hexstr(res, len);
+      if(end && r) *end = NULL;  // invalid character in hex string
+      break;
+    case '<':
+      r = readfile(&res, len);
+      if(end && r) *end = NULL;  // unable to read file
+      break;
+  }
+
   return res;
 }

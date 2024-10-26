@@ -374,7 +374,7 @@ void ndef_print_wk_record(const ndef_record_t* r) {
           printf("language: ");
           fwrite(r->data+1, ll, 1, stdout);
           printf("\ntext: ");
-          fwrite(r->data+1+ll, r->len-ll, 1, stdout);
+          fwrite(r->data+1+ll, r->len-ll-1, 1, stdout);
           printf("\n");
         }
       }
