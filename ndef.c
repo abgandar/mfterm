@@ -150,7 +150,7 @@ int ndef_text_record(const char* lang, const char* text, uint8_t** ndef, size_t*
   return 0;
 }
 
-int ndef_mime_record(const char* mime, const uint8_t* data, size_t dl, uint8_t** ndef, size_t* size) {
+int ndef_mime_record(const char* mime, const uint8_t* data, const size_t dl, uint8_t** ndef, size_t* size) {
   size_t ml = strlen(mime);
   if (ml > 255) {
     *size = 0;
@@ -184,7 +184,7 @@ int ndef_mime_record(const char* mime, const uint8_t* data, size_t dl, uint8_t**
   return 0;
 }
 
-int ndef_external_record(const char* type, const uint8_t* data, size_t dl, uint8_t** ndef, size_t* size) {
+int ndef_external_record(const char* type, const uint8_t* data, const size_t dl, uint8_t** ndef, size_t* size) {
   size_t tl = strlen(type), pl = tl+dl;
   bool sr = pl <= 0xFF;
   *size = pl + (sr ? 3 : 6);
@@ -266,7 +266,7 @@ int ndef_wifi_record(const char* ssid, const char* password, uint8_t** ndef, siz
   return res;
 }
 
-int ndef_put_sectors(mf_tag_t* tag, size_t s1, size_t s2, const uint8_t* ndef, const size_t size, bool ro) {
+int ndef_put_sectors(mf_tag_t* tag, const size_t s1, const size_t s2, const uint8_t* ndef, const size_t size, const bool ro) {
   // check size
   bool short_tlv = size <= 0xfe;
   size_t ss = 0, tlv_size = size + (short_tlv ? 2 : 4) + 1; // final closing tlv
@@ -315,7 +315,7 @@ int ndef_put_sectors(mf_tag_t* tag, size_t s1, size_t s2, const uint8_t* ndef, c
   return 0;
 }
 
-int ndef_perm(mf_tag_t* tag, size_t s1, size_t s2, bool ro) {
+int ndef_perm(mf_tag_t* tag, const size_t s1, const size_t s2, const bool ro) {
   for (size_t s = s1; s <= s2; s++) {
     if (s==0 || s==0x10) continue;    // reserved sectors
     size_t trailer = sector_to_trailer(s);
@@ -492,7 +492,7 @@ void ndef_print_mime_record(const ndef_record_t* r) {
   }
 }
 
-int ndef_print_records(const uint8_t* ndef, size_t len) {
+int ndef_print_records(const uint8_t* ndef, const size_t len) {
   // parse stream of records, printing them one by one
   printf("NDEF records found\n");
   const uint8_t *p = ndef, *end = ndef+len;
@@ -559,23 +559,24 @@ int ndef_print_records(const uint8_t* ndef, size_t len) {
   return 0;
 }
 
-int ndef_print(mf_tag_t* tag, size_t sector) {
-  if (sector == 0)
-    sector = mad_find_sector(tag, 0xe103);  // find first NDEF sector
+int ndef_print(const mf_tag_t* tag, size_t sector) {
   if (sector == 0) {
-    printf("No NDEF sectors found in MAD\n");
-    return -1;
+    sector = mad_find_sector(tag, 0xe103);  // find first NDEF sector
+    if (sector == 0) {
+      printf("No NDEF sectors found in MAD\n");
+      return -1;
+    }
   }
 
   // copy out data from tag into contiguous buffer for simplicity
-  uint8_t buf[4096] = {0}, *p = buf, *end;
+  uint8_t buf[4096] = {0}, *p = buf;
   for (size_t s = sector; s < 0x28; s++) {
     if (s == 0x10) continue;
     size_t h = sector_to_header(s), c = sector_size(h);
     memcpy(p, tag->amb[h].mbd.abtData, 16*(c-1));
     p += 16*(c-1);
   }
-  end = p;
+  const uint8_t *end = p;
 
   // find first NDEF TLV tag by iterating through all data bytes
   p = buf;
@@ -589,13 +590,14 @@ int ndef_print(mf_tag_t* tag, size_t sector) {
         // end of records TLV, we're done
         printf("No NDEF TLV found in sector(s)\n");
         return -1;
-    }
-    // any other TLV: read size (potentially read 3 bytes past end, OK as over-allocated)
-    if (*p < 0xFF) {
-      len = *p++;
-    } else {
-      len = (size_t)((p[1]<<8) | (p[2]));
-      p += 3;
+      default:
+        // any other TLV: read size (potentially read 3 bytes past end, OK as over-allocated)
+        if (*p < 0xFF) {
+          len = *p++;
+        } else {
+          len = (size_t)((p[1]<<8) | (p[2]));
+          p += 3;
+        }
     }
     if (tag == 0x03) break;    // found it!
     p += len; // not what we want, skip

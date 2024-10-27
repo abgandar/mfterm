@@ -56,7 +56,7 @@ static uint8_t do_crc(uint8_t c, const uint8_t v) {
   return c;
 }
 
-void mad_calc_crc(mf_tag_t* tag, uint8_t crcs[2]) {
+void mad_calc_crc(const mf_tag_t* tag, uint8_t crcs[2]) {
   uint8_t crc = 0xc7;
   for (int i = 1; i < 16; i++)
     crc = do_crc(crc, tag->amb[0x01].mbd.abtData[i]);
@@ -85,7 +85,7 @@ int mad_crc(mf_tag_t* tag) {
   return 0;
 }
 
-int mad_set_info(mf_tag_t* tag, size_t sector) {
+int mad_set_info(mf_tag_t* tag, const size_t sector) {
   if (sector < 0 || sector > 0x27 || sector == 0x10)
     return -1;
 
@@ -98,7 +98,7 @@ int mad_set_info(mf_tag_t* tag, size_t sector) {
   return mad_crc(tag);
 }
 
-int mad_put_aid(mf_tag_t* tag, size_t sector, uint16_t aid) {
+int mad_put_aid(mf_tag_t* tag, const size_t sector, const uint16_t aid) {
   if (sector < 1 || sector > 0x20 || sector == 0x10)
     return -1;
 
@@ -115,7 +115,7 @@ int mad_put_aid(mf_tag_t* tag, size_t sector, uint16_t aid) {
   return mad_crc(tag);
 }
 
-int mad_init(mf_tag_t* tag, mf_size_t size) {
+int mad_init(mf_tag_t* tag, const mf_size_t size) {
   memset(tag->amb[0x01].mbd.abtData, 0, 16);
   memset(tag->amb[0x02].mbd.abtData, 0, 16);
   memcpy(tag->amb[0x03].mbt.abtKeyA, mad_key_A, sizeof(mad_key_A));
@@ -154,7 +154,7 @@ static const char* find_AID(const uint16_t val) {
   return str;
 }
 
-int mad_print(mf_tag_t* tag) {
+int mad_print(const mf_tag_t* tag) {
   const uint8_t gpb1 = tag->amb[0x03].mbt.abtAccessBits[3];
   if (!(gpb1 & 0x80)) {
     printf("MAD not in use\n");
@@ -220,12 +220,12 @@ int mad_perm(mf_tag_t* tag, bool ro) {
   return 0;
 }
 
-int mad_get_version(mf_tag_t* tag) {
+int mad_get_version(const mf_tag_t* tag) {
   const uint8_t gpb1 = tag->amb[0x03].mbt.abtAccessBits[3];
   return (gpb1 & 0x03) == 2 ? 2 : 1;
 }
 
-bool mad_is_valid(mf_tag_t* tag) {
+bool mad_is_valid(const mf_tag_t* tag) {
   const uint8_t gpb1 = tag->amb[0x03].mbt.abtAccessBits[3];
   if (!(gpb1 & 0x80))
     return false;
@@ -242,7 +242,7 @@ bool mad_is_valid(mf_tag_t* tag) {
     return crc1 == crcs[0];
 }
 
-uint16_t mad_get_aid(mf_tag_t* tag, size_t sector) {
+uint16_t mad_get_aid(const mf_tag_t* tag, const size_t sector) {
   if (sector == 0)
     return 0;
   else if (sector < 16)
@@ -254,7 +254,7 @@ uint16_t mad_get_aid(mf_tag_t* tag, size_t sector) {
 }
 
 // find first sector with given aid or 0 if not found
-size_t mad_find_sector(mf_tag_t* tag, uint16_t aid) {
+size_t mad_find_sector(const mf_tag_t* tag, const uint16_t aid) {
   const uint8_t gpb1 = tag->amb[0x03].mbt.abtAccessBits[3];
   const uint8_t version = gpb1 & 0x03;
 

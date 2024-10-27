@@ -29,19 +29,19 @@ typedef struct {
 
 extern const aid_t AIDs[];
 
-void mad_calc_crc(mf_tag_t* tag, uint8_t crcs[2]);
+void mad_calc_crc(const mf_tag_t* tag, uint8_t crcs[2]);
 int mad_crc(mf_tag_t* tag);
-int mad_set_info(mf_tag_t* tag, size_t sector);
-int mad_put_aid(mf_tag_t* tag, size_t sector, uint16_t aid);
-int mad_init(mf_tag_t* tag, mf_size_t size);
-int mad_size(mf_tag_t* tag, mf_size_t size);
-int mad_print(mf_tag_t* tag);
+int mad_set_info(mf_tag_t* tag, const size_t sector);
+int mad_put_aid(mf_tag_t* tag, const size_t sector, const uint16_t aid);
+int mad_init(mf_tag_t* tag, const mf_size_t size);
+int mad_size(mf_tag_t* tag, const mf_size_t size);
+int mad_print(const mf_tag_t* tag);
 int mad_perm(mf_tag_t* tag, bool ro);
 
 // mad utilities
-int mad_get_version(mf_tag_t* tag);
-bool mad_is_valid(mf_tag_t* tag);
-uint16_t mad_get_aid(mf_tag_t* tag, size_t sector);
-size_t mad_find_sector(mf_tag_t* tag, uint16_t aid);
+int mad_get_version(const mf_tag_t* tag);
+bool mad_is_valid(const mf_tag_t* tag);
+uint16_t mad_get_aid(const mf_tag_t* tag, const size_t sector);
+size_t mad_find_sector(const mf_tag_t* tag, const uint16_t aid);
 
 #endif
