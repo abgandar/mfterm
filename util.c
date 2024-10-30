@@ -27,17 +27,17 @@
 #include <ctype.h>
 #include "util.h"
 
-void print_hex_array(const unsigned char* data, size_t nbytes) {
+void print_hex_array(const unsigned char* data, const size_t nbytes) {
   print_hex_array_sep(data, nbytes, NULL);
 }
 
-void print_hex_array_sep(const unsigned char* data, size_t nbytes, const char* sep) {
+void print_hex_array_sep(const unsigned char* data, const size_t nbytes, const char* sep) {
   for (int i = 0; i < nbytes; i++) {
-    printf("%02x%s", data[i], (sep && i < nbytes-1)?sep:"");
+    printf("%02x%s", data[i], (sep && i < nbytes-1) ? sep : "");
   }
 }
 
-void print_ascii_rendering(const unsigned char* data, size_t nbytes, const char nonascii) {
+void print_ascii_rendering(const unsigned char* data, const size_t nbytes, const char nonascii) {
     for (int i = 0; i < nbytes; i++) {
       printf("%c", (data[i] >= 32 && data[i] < 127) ? data[i] : nonascii);
     }
@@ -45,7 +45,7 @@ void print_ascii_rendering(const unsigned char* data, size_t nbytes, const char 
 
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 
-void print_hex_array_ascii(const unsigned char* data, size_t nbytes, size_t width) {
+void print_hex_array_ascii(const unsigned char* data, const size_t nbytes, const size_t width) {
   const uint8_t* d = data;
   for(ssize_t s = (ssize_t)nbytes; s > 0; s -= width, d += width) {
     print_hex_array_sep(d, MIN(width, (size_t)s), " ");
@@ -63,36 +63,8 @@ void print_hex_array_ascii(const unsigned char* data, size_t nbytes, size_t widt
 
 #undef MIN
 
-// Parse a string of hex bytes in the form xx
-// returns 1 if more bytes available, -1 if invalid character
-int parse_hex_str(const char* str, uint8_t res[], size_t* len) {
-  const char* s = str + strspn(str, " ");
-  size_t c = 0;
-
-  while (*s != '\0' && c < *len) {
-    if (s[1] == '\0') {
-      *len = c;
-      return -1;  // incomplete byte
-    }
-    char* end;
-    char tmp[3] = {0};
-    tmp[0] = s[0];
-    tmp[1] = s[1];
-    long v = strtol(tmp, &end, 16);
-    if (*end != '\0') {
-      *len = c;
-      return -1;  // invalid character
-    }
-    res[c++] = (uint8_t)v;
-    s += 2;
-    s += strspn(s, " ");
-  }
-  *len = c;
-  return *s == '\0' ? 0 : 1;
-}
-
 // convert hex character to value
-static uint8_t hexdigit(const unsigned char c) {
+static inline uint8_t hexdigit(const unsigned char c) {
   if(c >= '0' && c <= '9')
     return c-'0';
   else if(c >= 'a' && c <= 'f')
@@ -138,20 +110,21 @@ static int readfile(char** res, size_t* len) {
   FILE *f = fopen(*res, "r");
   if(!f) return -1;
   fseek(f, 0, SEEK_END);
-  const long flen = ftell(f);
-  if(flen < 0 || flen > 1024*1024){
+  long flen = ftell(f);
+  if(flen < 0) {
     fclose(f);
-    return -2;   // only read up to 1 Mb
+    return -2;
   }
+  if(flen > 1024*4) flen = 1024*4;    // only read up to 4kB
   fseek(f, 0, SEEK_SET);
-  char* data = malloc((size_t)flen+1);
-  if(!data){
+  char* data = malloc((size_t)flen + 1);
+  if(!data) {
     fclose(f);
-     return -3;
+    return -3;
   }
   const size_t rlen = fread(data, 1, (size_t)flen, f);
   fclose(f);
-  if(rlen != flen){
+  if(rlen != flen) {
     free(data);
     return -4;
   }

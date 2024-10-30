@@ -39,7 +39,7 @@
 
 #  include <nfc/nfc-types.h>
 
-// Compiler directive, set struct alignment to 1 uint8_t for compatibility
+// Compiler directive, set struct alignment to 1 uint8_t
 #  pragma pack(1)
 
 typedef enum {
@@ -72,14 +72,6 @@ typedef union {
   struct mifare_param_data mpd;
   struct mifare_param_value mpv;
 } mifare_param;
-
-// Reset struct alignment to default
-#  pragma pack()
-
-bool nfc_initiator_mifare_cmd(nfc_device *pnd, const mifare_cmd mc, const uint8_t ui8Block, mifare_param *pmp);
-
-// Compiler directive, set struct alignment to 1 uint8_t for compatibility
-#  pragma pack(1)
 
 // MIFARE Classic
 typedef struct {
@@ -136,5 +128,7 @@ typedef struct {
 
 // Reset struct alignment to default
 #  pragma pack()
+
+bool nfc_initiator_mifare_cmd(nfc_device *pnd, const mifare_cmd mc, const uint8_t ui8Block, mifare_param *pmp);
 
 #endif // _LIBNFC_MIFARE_H_

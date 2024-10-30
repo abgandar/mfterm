@@ -3,6 +3,7 @@
 
 /**
  * Copyright (C) 2011 Anders Sundman <anders@4zm.org>
+ * Copyright (C) 2024 Alexander Wittig <abgandar@gmail.com>
  *
  * This file is part of mfterm.
  *
@@ -20,16 +21,17 @@
  * along with mfterm.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdbool.h>
+
 // The DES MAC key in use
 extern unsigned char current_mac_key[8];
-
 
 /**
  * Compute a DES MAC, use DES in CBC mode. Key and output should be 8
  * bytes. The length specifies the length of the input in bytes. It
  * will be zero padded to 8 byte alignment if required.
  */
-int compute_mac(const unsigned char* input, unsigned char* output, const unsigned char key[8], long length);
+int compute_mac(const unsigned char* input, unsigned char* output, const unsigned char key[8], size_t length);
 
 /**
  * Compute the MAC of a given block with the specified 8 byte
@@ -40,6 +42,6 @@ int compute_mac(const unsigned char* input, unsigned char* output, const unsigne
  * If update is * nonzero, the mac of the current tag is updated. If
  * not, the MAC is simply printed.
  */
-unsigned char* compute_block_mac(unsigned int block, const unsigned char key[8], int update);
+unsigned char* compute_block_mac(uint8_t block, const unsigned char key[8], bool update);
 
 #endif

@@ -103,11 +103,11 @@ int mad_put_aid(mf_tag_t* tag, const size_t sector, const uint16_t aid) {
     return -1;
 
   if (sector <= 0x0F) {
-    int byte = (int)sector*2;
+    const int byte = (int)sector*2;
     tag->amb[0x01+byte/16].mbd.abtData[byte%16] = (uint8_t)(aid&0xFF);
     tag->amb[0x01+byte/16].mbd.abtData[byte%16+1] = (uint8_t)((aid>>8)&0xFF);
   } else {
-    int byte = (int)(sector-0x10)*2;
+    const int byte = (int)(sector-0x10)*2;
     tag->amb[0x40+byte/16].mbd.abtData[byte%16] = (uint8_t)(aid&0xFF);
     tag->amb[0x40+byte/16].mbd.abtData[byte%16+1] = (uint8_t)((aid>>8)&0xFF);
   }
@@ -134,7 +134,7 @@ int mad_init(mf_tag_t* tag, const mf_size_t size) {
 }
 
 int mad_size(mf_tag_t* tag, mf_size_t size) {
-  uint8_t flag = (size == MF_4K) ? 2 : 1;
+  const uint8_t flag = (size == MF_4K) ? 2 : 1;
 
   tag->amb[0x03].mbt.abtAccessBits[3] = (tag->amb[0x03].mbt.abtAccessBits[3] & 0xfc) | flag;
   if (size == MF_4K)

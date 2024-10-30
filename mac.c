@@ -1,5 +1,6 @@
 /**
  * Copyright (C) 2011 Anders Sundman <anders@4zm.org>
+ * Copyright (C) 2024 Alexander Wittig <abgandar@gmail.com>
  *
  * This file is part of mfterm.
  *
@@ -32,12 +33,15 @@ unsigned char current_mac_key[8] = { 0 };
  * Compute a DES MAC, use DES in CBC mode.
  * The length specifies the length of the input in bytes and must be a multiple of 8.
  */
-int compute_mac(const unsigned char* input, unsigned char output[8], const unsigned char key[8], long length) {
+int compute_mac(const unsigned char* input, unsigned char output[8], const unsigned char key[8], size_t length) {
   static int init = 0;
+  static OSSL_PROVIDER *deflt, *legacy;
   if(!init) {
-    OSSL_PROVIDER_load(NULL, "legacy");
-    OSSL_PROVIDER_load(NULL, "default");
+    legacy = OSSL_PROVIDER_load(NULL, "legacy");
+    deflt = OSSL_PROVIDER_load(NULL, "default");
     init = 1;
+    (void)legacy;
+    (void)deflt;
     // OSSL_PROVIDER_unload(legacy);
     // OSSL_PROVIDER_unload(deflt);
   }
@@ -48,11 +52,11 @@ int compute_mac(const unsigned char* input, unsigned char output[8], const unsig
   EVP_CIPHER *cipher = EVP_CIPHER_fetch(NULL, "DES-CBC", NULL);
   if(!ctx || !cipher) return -1;
 
-  int res = -1, l;
+  int res = -1, len;
   unsigned char ivec[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };      // IV is all zeroes
   if(!EVP_EncryptInit(ctx, cipher, key, ivec)) goto error;
-  for(; length>0; length -= 8, input += 8)
-    if(!EVP_EncryptUpdate(ctx, output, &l, input, 8)) goto error;
+  for(; length > 0; length -= 8, input += 8)
+    if(!EVP_EncryptUpdate(ctx, output, &len, input, 8)) goto error;
   res = 0;
 error:
   EVP_CIPHER_free(cipher);
@@ -64,7 +68,7 @@ error:
  * Compute the MAC of a given block with the specified 8 byte key. Return a 8 byte MAC value.
  * If update is nonzero, the mac of the current tag is updated.
  */
-unsigned char* compute_block_mac(unsigned int block, const unsigned char key[8], int update) {
+unsigned char* compute_block_mac(uint8_t block, const unsigned char key[8], bool update) {
   static unsigned char output[8];
 
   // Input to MAC algo [ 4 serial | 14 data | 6 0-pad ]
@@ -73,8 +77,8 @@ unsigned char* compute_block_mac(unsigned int block, const unsigned char key[8],
   memcpy(&input[4], current_tag.amb[block].mbd.abtData, 14);
   memset(&input[18], 0, 6);
 
-  if(compute_mac(input, output, key, 24)) return NULL;
-  if (update)
+  if(compute_mac(input, output, key, sizeof(input))) return NULL;
+  if(update)
     memcpy(&current_tag.amb[block].mbd.abtData[14], output, 2);
 
   return output;

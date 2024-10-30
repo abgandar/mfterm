@@ -32,11 +32,9 @@
  * @file mifare.c
  * @brief provide samples structs and functions to manipulate MIFARE Classic and Ultralight tags using libnfc
  */
-#include "mifare.h"
-
 #include <string.h>
-
 #include <nfc/nfc.h>
+#include "mifare.h"
 
 /**
  * @brief Execute a MIFARE Classic Command
@@ -51,8 +49,7 @@
  * After a successful authentication it will be possible to execute other commands (e.g. Read/Write).
  * The MIFARE Classic Specification (http://www.nxp.com/acrobat/other/identification/M001053_MF1ICS50_rev5_3.pdf) explains more about this process.
  */
-bool
-nfc_initiator_mifare_cmd(nfc_device *pnd, const mifare_cmd mc, const uint8_t ui8Block, mifare_param *pmp)
+bool nfc_initiator_mifare_cmd(nfc_device *pnd, const mifare_cmd mc, const uint8_t ui8Block, mifare_param *pmp)
 {
   uint8_t  abtRx[265];
   size_t  szParamLen;
@@ -90,15 +87,14 @@ nfc_initiator_mifare_cmd(nfc_device *pnd, const mifare_cmd mc, const uint8_t ui8
       // Please fix your code, you never should reach this statement
     default:
       return false;
-      break;
   }
 
   // When available, copy the parameter bytes
   if (szParamLen)
-    memcpy(abtCmd + 2, (uint8_t *) pmp, szParamLen);
+    memcpy(abtCmd + 2, pmp, szParamLen);
 
   // FIXME: Save and restore bEasyFraming
-  // bEasyFraming = nfc_device_get_property_bool (pnd, NP_EASY_FRAMING, &bEasyFraming);
+  // bEasyFraming = nfc_device_get_property_bool(pnd, NP_EASY_FRAMING, &bEasyFraming);
   if (nfc_device_set_property_bool(pnd, NP_EASY_FRAMING, true) < 0) {
     nfc_perror(pnd, "nfc_device_set_property_bool");
     return false;
@@ -107,24 +103,21 @@ nfc_initiator_mifare_cmd(nfc_device *pnd, const mifare_cmd mc, const uint8_t ui8
   int res;
   if ((res = nfc_initiator_transceive_bytes(pnd, abtCmd, 2 + szParamLen, abtRx, sizeof(abtRx), -1))  < 0) {
     if (res == NFC_ERFTRANS) {
-      // "Invalid received frame",  usual means we are
-      // authenticated on a sector but the requested MIFARE cmd (read, write)
-      // is not permitted by current acces bytes;
-      // So there is nothing to do here.
+      // "Invalid received frame", usual means we are authenticated on a sector but the requested MIF
+      // AR cmd (read, write) is not permitted by current acces bytes; So there is nothing to do here.
     }
 		else if (res == NFC_EMFCAUTHFAIL) {
-      // Since we implement a dictionary brute force attack,
-      // don't print an error on failed authentications.
+      // Since we implement a dictionary brute force attack, don't print an error on failed authentications.
     }
     else {
       nfc_perror(pnd, "nfc_initiator_transceive_bytes");
     }
-    // XXX nfc_device_set_property_bool (pnd, NP_EASY_FRAMING, bEasyFraming);
+    //nfc_device_set_property_bool(pnd, NP_EASY_FRAMING, bEasyFraming);
     return false;
   }
   /* XXX
-  if (nfc_device_set_property_bool (pnd, NP_EASY_FRAMING, bEasyFraming) < 0) {
-    nfc_perror (pnd, "nfc_device_set_property_bool");
+  if (nfc_device_set_property_bool(pnd, NP_EASY_FRAMING, bEasyFraming) < 0) {
+    nfc_perror(pnd, "nfc_device_set_property_bool");
     return false;
   }
   */

@@ -84,8 +84,8 @@ const command_t commands[] = {
 
   { "edit",         com_edit,          0, 1, "#block #offset data: Set tag block data" },
   { "edit value",   com_edit_value,    0, 1, "#block value [adr]: Edit a tag value block" },
-  { "edit uid",     com_edit_uid,      0, 1, "'xxxxxxxx[xxxxxx]': Set tag UID" },
-  { "edit key",     com_edit_key,      0, 1, "#sector A|B|AB 'xxxxxxxxxxxx': Set tag sector key" },
+  { "edit uid",     com_edit_uid,      0, 1, "$xxxxxxxx[xxxxxx]: Set tag UID" },
+  { "edit key",     com_edit_key,      0, 1, "#sector A|B|AB $xxxxxxxxxxxx: Set tag sector key" },
   { "edit perm",    com_edit_perm,     0, 1, "#block C1C2C3: Set tag block permissions" },
   { "edit mod",     com_edit_mod,      0, 1, "1|0: Set load modulation strength (1=strong, 0=normal)" },
 
@@ -94,14 +94,14 @@ const command_t commands[] = {
   { "ndef perm",    com_ndef_perm,     0, 1, "#sector RW|RO: Set permissions to read-only or read-write" },
 
   { "mad",          com_mad,           0, 1, "Print tag MAD" },
-  { "mad put",      com_mad_put,       0, 1, "#sector AID: Set 16-bit AID for given sector(s)" },
+  { "mad put",      com_mad_put,       0, 1, "#sector AID: Set AID (16 bit) for given sector(s)" },
   { "mad size",     com_mad_size,      0, 1, "1K|4K: Set tag MAD size/version (v1=1K, v2=4K)" },
   { "mad init",     com_mad_init,      0, 1, "1K|4K: Initialize tag MAD (v1=1K, v2=4K)" },
   { "mad crc",      com_mad_crc,       0, 1, "Update tag MAD CRC" },
   { "mad perm",     com_mad_perm,      0, 1, "#sector RW|RO: Set permissions to read-only or read-write" },
 
   { "set",          com_set,           0, 1, "Print current settings" },
-  { "set auth",     com_set_auth,      0, 1, "A|B|AB|*: Set keys for authentication (* = gen1 unlock)" },
+  { "set auth",     com_set_auth,      0, 1, "A|B|AB|*: Set keys for authentication (*=gen1 unlock)" },
   { "set size",     com_set_size,      0, 1, "1K|4K: Set the default tag size" },
   { "set device",   com_set_device,    0, 1, "Set NFC device to use" },
 
@@ -109,14 +109,14 @@ const command_t commands[] = {
   { "auth load",    com_auth_load,     1, 1, "Load auth keys from file" },
   { "auth save",    com_auth_save,     1, 1, "Save auth keys to file" },
   { "auth clear",   com_auth_clear,    0, 1, "Clear auth keys" },
-  { "auth put",     com_auth_put,      0, 1, "#sector A|B|AB 'xxxxxxxxxxxx': Set auth key" },
+  { "auth put",     com_auth_put,      0, 1, "#sector A|B|AB $xxxxxxxxxxxx: Set auth key" },
   { "auth import",  com_auth_import,   0, 1, "#sector A|B|AB: Import sector auth keys from tag" },
   { "auth export",  com_auth_export,   0, 1, "#sector A|B|AB: Export sector auth keys to tag" },
   { "auth test",    com_auth_test,     0, 1, "#sector A|B|AB: Try to authenticate with auth keys" },
 
   { "dict",         com_dict_print,    0, 1, "Print the key dictionary" },
   { "dict load",    com_dict_load,     1, 1, "file: Load a dictionary key file" },
-  { "dict add",     com_dict_add,      0, 1, "'xxxxxxxxxxxx': Add key to key dictionary" },
+  { "dict add",     com_dict_add,      0, 1, "$xxxxxxxxxxxx: Add key to key dictionary" },
   { "dict clear",   com_dict_clear,    0, 1, "Clear the key dictionary" },
   { "dict attack",  com_dict_attack,   0, 1, "Try dictionary keys against a physical tag"},
 
@@ -124,7 +124,7 @@ const command_t commands[] = {
   { "spec load",    com_spec_load,     1, 1, "file: Load a specification file" },
   { "spec clear",   com_spec_clear,    0, 1, "Unload the specification" },
 
-  { "mac key",      com_mac_key_get_set,   0, 1, "'xxxxxxxxxxxxxxxx': Get or set MAC key" },
+  { "mac key",      com_mac_key_get_set,   0, 1, "$xxxxxxxxxxxxxxxx: Get or set MAC key" },
   { "mac compute",  com_mac_block_compute, 0, 1, "#block: Compute block MAC" },
   { "mac update",   com_mac_block_update,  0, 1, "#block: Update block MAC" },
   { "mac validate", com_mac_validate,      0, 1, "1K|4K: Validates block MAC of the whole tag" },
@@ -159,11 +159,7 @@ mf_size_t parse_size(const char* str, const char* def);
 int parse_key(const char* str, const size_t len, uint8_t key[6]);
 
 // Compute the MAC using the current_mac_key
-int com_mac_block_compute_impl(char* argv[], size_t argl[], size_t argc, int update);
-
-// edit implementation
-int com_edit_impl(char* argv[], size_t argl[], size_t argc, bool hex);
-
+int com_mac_block_compute_impl(char* argv[], size_t argl[], size_t argc, bool update);
 
 /**
  * Helper functions
@@ -194,10 +190,10 @@ void print_help_(size_t cmd) {
     }
   }
   // Format: 4x' ' | cmd | ' '-pad-to-longest-cmd | 4x' ' | doc
-  printf ("    %s", commands[cmd].name);
+  printf("    %s", commands[cmd].name);
   for (int j = (int)(cmd_len_max - strlen(commands[cmd].name)); j >= 0; --j)
     printf(" ");
-  printf ("    %s.\n", commands[cmd].doc);
+  printf("    %s.\n", commands[cmd].doc);
 }
 
 // Any command starting with '.' - path spec
@@ -229,7 +225,7 @@ int com_help(char* argv[], size_t argl[], size_t argc) {
           break;
         }
       }
-      if (!ok) printf ("No commands match '%s'\n", *arg);
+      if (!ok) printf("No commands match '%s'\n", *arg);
     }
     return found == argc ? 0 : -1;
   }
@@ -302,7 +298,7 @@ int com_clear_block(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t b1, b2;
-  if( parse_blocks( argv[0], &b1, &b2, settings.size ) != 0 ) {
+  if (parse_blocks(argv[0], &b1, &b2, settings.size) != 0) {
     printf("Invalid block range: %s\n", argv[0] ? argv[0] : settings.size);
     return -1;
   }
@@ -322,7 +318,7 @@ int com_clear_sector(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t s1, s2;
-  if( parse_sectors( argv[0], &s1, &s2, settings.size ) != 0 ) {
+  if (parse_sectors(argv[0], &s1, &s2, settings.size) != 0) {
     printf("Invalid sector range: %s\n", argv[0] ? argv[0] : settings.size);
     return -1;
   }
@@ -344,7 +340,7 @@ int com_read_block(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t b1, b2;
-  if( parse_blocks( argv[0], &b1, &b2, settings.size ) != 0 ) {
+  if (parse_blocks(argv[0], &b1, &b2, settings.size) != 0) {
     printf("Invalid block range: %s\n", argv[0] ? argv[0] : settings.size);
     return -1;
   }
@@ -363,7 +359,7 @@ int com_read_sector(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t s1, s2;
-  if( parse_sectors( argv[0], &s1, &s2, settings.size ) != 0 ) {
+  if (parse_sectors(argv[0], &s1, &s2, settings.size) != 0) {
     printf("Invalid sector range: %s\n", argv[0] ? argv[0] : settings.size);
     return -1;
   }
@@ -384,7 +380,7 @@ int com_write_block(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t b1, b2;
-  if( parse_blocks( argv[0], &b1, &b2, settings.size ) != 0 ) {
+  if (parse_blocks(argv[0], &b1, &b2, settings.size) != 0) {
     printf("Invalid block range: %s\n", argv[0] ? argv[0] : settings.size);
     return -1;
   }
@@ -403,7 +399,7 @@ int com_write_sector(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t s1, s2;
-  if( parse_sectors( argv[0], &s1, &s2, settings.size ) != 0 ) {
+  if (parse_sectors(argv[0], &s1, &s2, settings.size) != 0) {
     printf("Invalid sector range: %s\n", argv[0] ? argv[0] : settings.size);
     return -1;
   }
@@ -507,7 +503,7 @@ int com_print_blocks(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t b1, b2;
-  if( parse_blocks( argv[0], &b1, &b2, settings.size ) != 0 ) {
+  if (parse_blocks(argv[0], &b1, &b2, settings.size) != 0) {
     printf("Invalid block range: %s\n", argv[0] ? argv[0] : settings.size);
     return -1;
   }
@@ -527,7 +523,7 @@ int com_print_sectors(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t s1, s2;
-  if( parse_sectors( argv[0], &s1, &s2, settings.size ) != 0 ) {
+  if (parse_sectors(argv[0], &s1, &s2, settings.size) != 0) {
     printf("Invalid sector range: %s\n", argv[0] ? argv[0] : settings.size);
     return -1;
   }
@@ -549,7 +545,7 @@ int com_edit(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t b1, b2;
-  if( parse_blocks( argv[0], &b1, &b2, settings.size ) != 0 ) {
+  if (parse_blocks(argv[0], &b1, &b2, settings.size) != 0) {
     printf("Invalid block range: %s\n", argv[0]);
     return -1;
   }
@@ -578,8 +574,8 @@ int com_edit(char* argv[], size_t argl[], size_t argc) {
     return -1;
   }
 
-  for( size_t block = b1; block <= b2; block++ )
-    memcpy( current_tag.amb[block].mbd.abtData+offset, argv[2], argl[2] );
+  for (size_t block = b1; block <= b2; block++)
+    memcpy(current_tag.amb[block].mbd.abtData+offset, argv[2], argl[2]);
 
   return 0;
 }
@@ -591,7 +587,7 @@ int com_edit_value(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t b1, b2;
-  if( parse_blocks( argv[0], &b1, &b2, settings.size ) != 0 ) {
+  if (parse_blocks(argv[0], &b1, &b2, settings.size) != 0) {
     printf("Invalid block range: %s\n", argv[0] ? argv[0] : settings.size);
     return -1;
   }
@@ -608,7 +604,7 @@ int com_edit_value(char* argv[], size_t argl[], size_t argc) {
   }
 
   uint8_t adr = 0;
-  if(argc == 3) {
+  if (argc == 3) {
     char* adr_str = argv[2];
     long int adrl = strtol(adr_str, &adr_str, 0);
     if (adrl < 0 || adrl > UINT8_MAX || *adr_str != '\0') {
@@ -634,7 +630,7 @@ int com_edit_key(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t s1, s2;
-  if( parse_sectors( argv[0], &s1, &s2, settings.size ) != 0 ) {
+  if (parse_sectors(argv[0], &s1, &s2, settings.size) != 0) {
     printf("Invalid sector range: %s\n", argv[0]);
     return -1;
   }
@@ -665,10 +661,10 @@ int com_edit_key(char* argv[], size_t argl[], size_t argc) {
 
     // copy to appropriate keys
     if (key_type == MF_KEY_A || key_type == MF_KEY_AB)
-      memcpy( current_tag.amb[block].mbt.abtKeyA, key, sizeof(key) );
+      memcpy(current_tag.amb[block].mbt.abtKeyA, key, sizeof(key));
 
     if (key_type == MF_KEY_B || key_type == MF_KEY_AB)
-      memcpy( current_tag.amb[block].mbt.abtKeyB, key, sizeof(key) );
+      memcpy(current_tag.amb[block].mbt.abtKeyB, key, sizeof(key));
   }
 
   return 0;
@@ -739,7 +735,7 @@ int com_edit_uid(char* argv[], size_t argl[], size_t argc) {
     argl[0] = 5;
   }
 
-  memcpy( current_tag.amb[0].mbd.abtData, uid, argl[0] );
+  memcpy(current_tag.amb[0].mbd.abtData, uid, argl[0]);
   return 0;
 }
 
@@ -768,7 +764,7 @@ int com_ndef(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t s1, s2;
-  if( parse_sectors( argv[0], &s1, &s2, settings.size ) != 0 ) {
+  if (parse_sectors(argv[0], &s1, &s2, settings.size) != 0) {
     printf("Invalid sector range: %s\n", argv[0] ? argv[0] : settings.size);
     return -1;
   }
@@ -788,7 +784,7 @@ int com_ndef_put(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t s1, s2;
-  if( parse_sectors( argv[0], &s1, &s2, settings.size ) != 0 ) {
+  if (parse_sectors(argv[0], &s1, &s2, settings.size) != 0) {
     printf("Invalid sector range: %s\n", argv[0]);
     return -1;
   }
@@ -909,7 +905,7 @@ int com_ndef_perm(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t s1, s2;
-  if( parse_sectors( argv[0], &s1, &s2, settings.size ) != 0 ) {
+  if (parse_sectors(argv[0], &s1, &s2, settings.size) != 0) {
     printf("Invalid sector range: %s\n", argv[0]);
     return -1;
   }
@@ -967,7 +963,7 @@ int com_mad_put(char* argv[], size_t argl[], size_t argc) {
   char* aid_str = argv[1];
 
   size_t sector1, sector2;
-  if( parse_sectors( sector_str, &sector1, &sector2, NULL ) != 0 ) {
+  if (parse_sectors(sector_str, &sector1, &sector2, NULL) != 0) {
     printf("Invalid sector range: %s\n", sector_str);
     return -1;
   }
@@ -1099,7 +1095,7 @@ int com_print_keys(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t s1, s2;
-  if( parse_sectors( argv[0], &s1, &s2, settings.size ) != 0 ) {
+  if (parse_sectors(argv[0], &s1, &s2, settings.size) != 0) {
     printf("Invalid sector range: %s\n", argv[0] ? argv[0] : settings.size);
     return -1;
   }
@@ -1119,7 +1115,7 @@ int com_print_perm(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t s1, s2;
-  if( parse_sectors( argv[0], &s1, &s2, settings.size ) != 0 ) {
+  if (parse_sectors(argv[0], &s1, &s2, settings.size) != 0) {
     printf("Invalid sector range: %s\n", argv[0] ? argv[0] : settings.size);
     return -1;
   }
@@ -1141,7 +1137,7 @@ int com_print_value(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t b1, b2;
-  if( parse_blocks( argv[0], &b1, &b2, settings.size ) != 0 ) {
+  if (parse_blocks(argv[0], &b1, &b2, settings.size) != 0) {
     printf("Invalid block range: %s\n", argv[0] ? argv[0] : settings.size);
     return -1;
   }
@@ -1273,7 +1269,7 @@ int com_auth_put(char* argv[], size_t argl[], size_t argc) {
   char* key_str = argv[2];
 
   size_t s1, s2;
-  if( parse_sectors( sector_str, &s1, &s2, settings.size ) != 0 ) {
+  if (parse_sectors( sector_str, &s1, &s2, settings.size ) != 0) {
     printf("Invalid sector range: %s\n", sector_str ? sector_str : settings.size);
     return -1;
   }
@@ -1302,10 +1298,10 @@ int com_auth_put(char* argv[], size_t argl[], size_t argc) {
     size_t block = sector_to_trailer(sector);
 
     if (key_type == MF_KEY_A || key_type == MF_KEY_AB)
-      memcpy( current_auth.amb[block].mbt.abtKeyA, key, sizeof(key) );
+      memcpy(current_auth.amb[block].mbt.abtKeyA, key, sizeof(key));
 
     if (key_type == MF_KEY_B || key_type == MF_KEY_AB)
-      memcpy( current_auth.amb[block].mbt.abtKeyB, key, sizeof(key) );
+      memcpy(current_auth.amb[block].mbt.abtKeyB, key, sizeof(key));
   }
 
   return 0;
@@ -1320,7 +1316,7 @@ int com_auth_import(char* argv[], size_t argl[], size_t argc) {
   char* ab_str = argc > 1 ? argv[1] : NULL;
 
   size_t s1, s2;
-  if( parse_sectors( sector_str, &s1, &s2, settings.size ) != 0 ) {
+  if (parse_sectors( sector_str, &s1, &s2, settings.size ) != 0) {
     printf("Invalid sector range: %s\n", sector_str ? sector_str : settings.size);
     return -1;
   }
@@ -1347,7 +1343,7 @@ int com_auth_export(char* argv[], size_t argl[], size_t argc) {
   char* ab_str = argc > 1 ? argv[1] : NULL;
 
   size_t s1, s2;
-  if( parse_sectors( sector_str, &s1, &s2, settings.size ) != 0 ) {
+  if (parse_sectors( sector_str, &s1, &s2, settings.size ) != 0) {
     printf("Invalid sector range: %s\n", sector_str ? sector_str : settings.size);
     return -1;
   }
@@ -1375,7 +1371,7 @@ int com_auth_test(char* argv[], size_t argl[], size_t argc) {
   char* ab_str = argc > 1 ? argv[1] : NULL;
 
   size_t s1, s2;
-  if( parse_sectors( sector_str, &s1, &s2, settings.size ) != 0 ) {
+  if (parse_sectors( sector_str, &s1, &s2, settings.size ) != 0) {
     printf("Invalid sector range: %s\n", sector_str ? sector_str : settings.size);
     return -1;
   }
@@ -1560,21 +1556,21 @@ int com_mac_key_get_set(char* argv[], size_t argl[], size_t argc) {
 }
 
 int com_mac_block_compute(char* argv[], size_t argl[], size_t argc) {
-  return com_mac_block_compute_impl(argv, argl, argc, 0);
+  return com_mac_block_compute_impl(argv, argl, argc, false);
 }
 
 int com_mac_block_update(char* argv[], size_t argl[], size_t argc) {
-  return com_mac_block_compute_impl(argv, argl, argc, 1);
+  return com_mac_block_compute_impl(argv, argl, argc, true);
 }
 
-int com_mac_block_compute_impl(char* argv[], size_t argl[], size_t argc, int update) {
+int com_mac_block_compute_impl(char* argv[], size_t argl[], size_t argc, bool update) {
   if (argc > 1) {
     printf("Expecting a single block range\n");
     return -1;
   }
 
   size_t b1, b2;
-  if( parse_blocks( argv[0], &b1, &b2, settings.size ) != 0 ) {
+  if (parse_blocks(argv[0], &b1, &b2, settings.size) != 0) {
     printf("Invalid block range: %s\n", argv[0] ? argv[0] : settings.size);
     return -1;
   }
@@ -1586,7 +1582,7 @@ int com_mac_block_compute_impl(char* argv[], size_t argl[], size_t argc, int upd
   int res = 0;
   for (size_t b = b1; b <= b2; b++) {
     if (is_trailer_block(b) || b == 0) continue;
-    unsigned char* mac = compute_block_mac((unsigned int)b, current_mac_key, update);
+    unsigned char* mac = compute_block_mac((uint8_t)b, current_mac_key, update);
     if (mac == 0)
     {
       printf("Block %2.2x, MAC : error\n", (unsigned int)b);
@@ -1608,7 +1604,7 @@ int com_mac_validate(char* argv[], size_t argl[], size_t argc) {
   }
 
   size_t b1, b2;
-  if( parse_blocks( argv[0], &b1, &b2, settings.size ) != 0 ) {
+  if (parse_blocks(argv[0], &b1, &b2, settings.size) != 0) {
     printf("Invalid block range: %s\n", argv[0] ? argv[0] : settings.size);
     return -1;
   }
@@ -1620,7 +1616,7 @@ int com_mac_validate(char* argv[], size_t argl[], size_t argc) {
   for (size_t b = b1; b <= b2; b++) {
     if (is_trailer_block(b) || b == 0) continue;
 
-    unsigned char* mac = compute_block_mac((unsigned int)b, current_mac_key, 0);
+    unsigned char* mac = compute_block_mac((uint8_t)b, current_mac_key, 0);
     printf("Block: %2x ", (unsigned int)b);
     printf("Tag: ");
     print_hex_array_sep(&current_tag.amb[b].mbd.abtData[14], 2, " ");

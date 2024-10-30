@@ -27,16 +27,16 @@
 #include <stdint.h>
 
 // Print a byte array in hex without byte separation
-void print_hex_array(const unsigned char* data, size_t nbytes);
+void print_hex_array(const unsigned char* data, const size_t nbytes);
 
 // Print a byte array in hex with the specified byte separation.
-void print_hex_array_sep(const unsigned char* data, size_t nbytes, const char* sep);
+void print_hex_array_sep(const unsigned char* data, const size_t nbytes, const char* sep);
 
 // Print binary data as both hex and ascii side by side
-void print_hex_array_ascii(const unsigned char* data, size_t nbytes, size_t width);
+void print_hex_array_ascii(const unsigned char* data, const size_t nbytes, const size_t width);
 
 // Print binary data as ascii - replace non printable chars with nonascii
-void print_ascii_rendering(const unsigned char* data, size_t nbytes, const char nonascii);
+void print_ascii_rendering(const unsigned char* data, const size_t nbytes, const char nonascii);
 
 // tokenize quoted strings
 char* strqtok(char* str, size_t* len, char** end);
