@@ -21,14 +21,15 @@
  * fileman.c (GPLv3). Copyright (C) 1987-2009 Free Software Foundation, Inc
  */
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
 #include <signal.h>
+#include <getopt.h>
 #include <readline/readline.h>
 #include <readline/history.h>
-#include <getopt.h>
 #include <nfc/nfc.h>
 #include "mfterm.h"
 #include "mifare_ctrl.h"
@@ -39,9 +40,9 @@
 
 #include "config.h"
 
-static int stop_input_loop_ = 0;
+static bool stop_input_loop_ = false;
 void stop_input_loop() {
-  stop_input_loop_ = 1;
+  stop_input_loop_ = true;
 }
 
 char* completion_cmd_generator(const char* text, int state);
@@ -70,7 +71,7 @@ int main(int argc, char** argv) {
 }
 
 void parse_cmdline(int argc, char** argv) {
-  static struct option long_options[] = {
+  const struct option long_options[] = {
     {"help",      no_argument,       0,  'h' },
     {"version",   no_argument,       0,  'v' },
     {"tag",       required_argument, 0,  't' },
@@ -82,24 +83,26 @@ void parse_cmdline(int argc, char** argv) {
   char* tag_file = NULL;
   char* keys_file = NULL;
   char* dict_file = NULL;
-
   int opt = 0;
   int long_index = 0;
-  while ((opt = getopt_long(argc, argv,"hvt:k:d:", long_options, &long_index )) != -1) {
+  while ((opt = getopt_long(argc, argv, "hvt:k:d:", long_options, &long_index)) != -1) {
     switch (opt) {
-      case 'h' :
+      case 'h':
         print_help();
         exit(0);
-      case 'v' :
+      case 'v':
         print_version();
         exit(0);
-      case 't' : tag_file = optarg;
+      case 't':
+        tag_file = optarg;
         break;
-      case 'k' : keys_file = optarg;
+      case 'k':
+        keys_file = optarg;
         break;
-      case 'd' : dict_file = optarg;
+      case 'd':
+        dict_file = optarg;
         break;
-      default :
+      default:
         exit(1);
     }
   }
@@ -108,7 +111,7 @@ void parse_cmdline(int argc, char** argv) {
   size_t al[2] = { 0 };
 
   // If a tag file was specified, load it
-  if(tag_file) {
+  if (tag_file) {
     av[0] = tag_file;
     al[0] = strlen(tag_file);
     if (com_load_tag(av, al, 1))
@@ -116,10 +119,10 @@ void parse_cmdline(int argc, char** argv) {
   }
 
   // If a keys file was specified, load it
-  if(keys_file) {
+  if (keys_file) {
     av[0] = keys_file;
     al[0] = strlen(keys_file);
-    if (keys_file != NULL && com_auth_load(av, al, 1))
+    if (com_auth_load(av, al, 1))
       exit(0);
   }
 
@@ -127,7 +130,7 @@ void parse_cmdline(int argc, char** argv) {
   if(dict_file) {
     av[0] = dict_file;
     al[0] = strlen(dict_file);
-    if (dict_file != NULL && com_dict_load(av, al, 1))
+    if (com_dict_load(av, al, 1))
       exit(0);
   }
 }
@@ -137,27 +140,27 @@ void input_loop() {
   char *line, *s, *prev = NULL;
   int res = 0;
   while (stop_input_loop_ == 0) {
-    line = readline (res == 0 ? "\x01\e[32m\x02$ \x01\e[0m\x02" : "\x01\e[31m\x02$ \x01\e[0m\x02");
+    line = readline(res == 0 ? "\x01\e[32m\x02$ \x01\e[0m\x02" : "\x01\e[31m\x02$ \x01\e[0m\x02");
     if (!line)
       break;
     s = line + strspn(line, " \t\n\r"); // skip leading whitespace
 
     if (*s) {
-      if(!prev || strcmp(s, prev) != 0)
+      if (!prev || strcmp(s, prev) != 0)
         add_history(s);
-      if(prev)
+      if (prev)
         free(prev);
       prev = strdup(s);
       res = execute_line(s);
     }
     free(line);
   }
-  if(prev)
+  if (prev)
     free(prev);
 }
 
 /* Execute a command line. */
-int execute_line (char* line) {
+int execute_line(char* line) {
   if (strncmp(line, ".", 1) == 0)
     return exec_path_command(line);
 
@@ -173,7 +176,7 @@ int execute_line (char* line) {
   line += strspn(line, " \t\n\r");
 
   // pre-parse arguments
-  char* argv[128], *next, *start = line, *end = line+strlen(line);
+  char* argv[128], *next, *start = line, *end = line + strlen(line);
   size_t argc = 0, argl[128];
   while (argc < 128 && (argv[argc] = strqtok(line, argl+argc, &next))) {
     if (!next) {
@@ -192,8 +195,8 @@ int execute_line (char* line) {
   const int res = (*(command->func))(argv, argl, argc);
 
   // free possibly allocated arguments
-  for(int i = 0; i < argc; i++){
-    if(argv[i] < start || argv[i] > end){
+  for (int i = 0; i < argc; i++) {
+    if (argv[i] < start || argv[i] > end) {
       free(argv[i]);
     }
   }
@@ -274,17 +277,15 @@ char** mft_completion(char* text, int start, int end) {
   // else: Sub commands and file arguments start at > 0
 
   // Try to match sub commands
-  matches = rl_completion_matches(text, completion_sub_cmd_generator);
-  if (matches)
-      return matches;
+  if ((matches = rl_completion_matches(text, completion_sub_cmd_generator)))
+    return matches;
 
-  if (perform_filename_completion()) {
+  if ((start > 0 && rl_line_buffer[start-1] == '<') || perform_filename_completion()) {
     // Do complete on filenames
     rl_attempted_completion_over = 0;
-    return matches;
   }
 
-  return matches;
+  return NULL;
 }
 
 int perform_filename_completion() {
@@ -317,14 +318,12 @@ char* completion_cmd_generator(const char* text, int state) {
 
     // Check if the command is applicable
     if (strncmp(name, text, len) == 0) {
-      char* r = malloc(strlen(name) + 1);
-      strcpy(r, name);
-      return r;
+      return strdup(name);
     }
   }
 
   // No (more) matches
-  return (char*) NULL;
+  return NULL;
 }
 
 char* completion_sub_cmd_generator(const char* text, int state) {
@@ -349,20 +348,17 @@ char* completion_sub_cmd_generator(const char* text, int state) {
     char* cmd = strtok(buff, " ");
     char* sub = strtok(NULL, " ");
 
-    // Make sure the command *has* a sub command
-    // and that we have the right command.
+    // Make sure the command *has* a sub command and that we have the right command.
     if (cmd && sub && strncmp(rl_line_buffer, name, full_len) == 0) {
       // Check if the sub command is applicable
       if (strncmp(sub, text, len) == 0) {
-        char* r = malloc(strlen(sub) + 1);
-        strcpy(r, sub);
-        return r;
+        return strdup(sub);
       }
     }
   }
 
   // No (more) matches
-  return (char*) NULL;
+  return NULL;
 }
 
 /**
@@ -380,14 +376,10 @@ char* completion_spec_generator(const char* text, int state) {
 
   // First call?
   if (!state) {
-
     // Set the parent context
     if (parse_partial_spec_path(text, &parent_end, &parent_inst) != 0)
-      return NULL; // on error
-
+      return NULL;
     parent_end_len = strlen(parent_end);
-
-    // The instance iter points to the first fields
     inst_iter = parent_inst->fields;
   }
 
@@ -404,7 +396,6 @@ char* completion_spec_generator(const char* text, int state) {
 
     // Check if the field is applicable - right prefix
     if (fname_len >= parent_end_len && strncmp(fname, parent_end, parent_end_len) == 0) {
-
       if (parent_end - text <= 0)
         return NULL;
       size_t parent_len = (size_t)(parent_end - text);
@@ -412,11 +403,8 @@ char* completion_spec_generator(const char* text, int state) {
 
       // The parent part ending with '.'
       strncpy(str, text, parent_len);
-
       // The field
       strncpy(str + parent_len, fname, fname_len);
-
-      // Null termination
       *(str + parent_len + fname_len) = '\0';
 
       return str;
@@ -444,7 +432,7 @@ void print_help() {
 void print_version() {
   printf(PACKAGE_STRING "\n");
   printf("Copyright (C) 2011-2013 Anders Sundman <anders@4zm.org>\n");
-  printf("Copyright (C) 2024 Alexander Wittig <abgandar@gmal.com>\n");
+  printf("Copyright (C) 2024 Alexander Wittig <abgandar@gmail.com>\n");
   printf("License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n");
   printf("This is free software: you are free to change and redistribute it.\n");
   printf("There is NO WARRANTY, to the extent permitted by law.\n");

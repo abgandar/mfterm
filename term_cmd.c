@@ -41,6 +41,7 @@ const command_t commands[] = {
   { "?",            com_help,          0, 0, "Alias of help" },
   { "version",      com_version,       0, 1, "Show version information" },
   { "devices",      com_devices,       0, 1, "List all connected NFC devices" },
+  { "echo",         com_echo,          0, 1, "Echo back all given arguments" },
 
   { "quit",         com_quit,          0, 1, "Exit the program" },
   { "q",            com_quit,          0, 0, "Alias of quit" },
@@ -240,6 +241,13 @@ int com_help(char* argv[], size_t argl[], size_t argc) {
 
 int com_quit(char* argv[], size_t argl[], size_t argc) {
   stop_input_loop();
+  return 0;
+}
+
+int com_echo(char* argv[], size_t argl[], size_t argc) {
+  for (size_t i = 0; i < argc; i++) {
+    print_hex_array_ascii((unsigned char*)argv[i], argl[i], 16);
+  }
   return 0;
 }
 

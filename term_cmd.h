@@ -57,6 +57,7 @@ int com_quit(char* argv[], size_t argl[], size_t argc);
 // Misc routines
 int com_version(char* argv[], size_t argl[], size_t argc);
 int com_devices(char* argv[], size_t argl[], size_t argc);
+int com_echo(char* argv[], size_t argl[], size_t argc);
 
 // Settings
 int com_set(char* argv[], size_t argl[], size_t argc);
